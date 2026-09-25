@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { formatExerciseTime } from '@tds/engine';
+import { MapCanvas } from './map/MapCanvas';
 
 export function App() {
   const [startedAt] = useState(() => Date.now());
@@ -12,11 +13,13 @@ export function App() {
 
   return (
     <main className="app">
-      <h1>TopDownSimulator</h1>
-      <p>Digitales Planspiel für die Feuerwehr</p>
-      <p className="clock" aria-label="Einsatzuhr">
-        {formatExerciseTime(now - startedAt)}
-      </p>
+      <MapCanvas />
+      <header className="app-header">
+        <h1>TopDownSimulator</h1>
+        <span className="clock" aria-label="Einsatzuhr">
+          {formatExerciseTime(now - startedAt)}
+        </span>
+      </header>
     </main>
   );
 }
