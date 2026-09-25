@@ -2,21 +2,104 @@
   font-family: system-ui, sans-serif;
   color: #1a1a1a;
   background: #f4f4f2;
+  --panel: rgb(255 255 255 / 0.9);
+  --panel-border: #d4d4ce;
+  --accent: #c8102e;
 }
 
 body {
   margin: 0;
+  overflow: hidden;
 }
 
+/* Die Karte füllt das ganze Fenster, alles andere liegt darüber. */
 .app {
-  display: grid;
-  place-content: center;
-  min-height: 100vh;
-  text-align: center;
+  position: relative;
+  height: 100vh;
+}
+
+.app-header {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 1rem;
 }
 
 .clock {
   font-family: ui-monospace, monospace;
-  font-size: 3rem;
-  color: #c8102e;
+  font-size: 1.25rem;
+  color: var(--accent);
+}
+
+.map,
+.map-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.map-canvas {
+  cursor: grab;
+}
+
+/* Die Karte darf keine Touch-Gesten an den Browser weitergeben (Scrollen, Zoomen). */
+.map-canvas canvas {
+  display: block;
+  touch-action: none;
+}
+
+.map-overlay {
+  position: absolute;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+.map-overlay--bottom-left {
+  left: 12px;
+}
+
+.map-overlay--bottom-right {
+  right: 12px;
+}
+
+.scale-bar {
+  padding: 2px 0;
+  border: 2px solid #1a1a1a;
+  border-top: none;
+  background: var(--panel);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.cursor-position {
+  padding: 4px 8px;
+  background: var(--panel);
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+}
+
+.map-overlay button {
+  padding: 6px 12px;
+  font: inherit;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.map-overlay button:hover {
+  background: #fff;
 }
