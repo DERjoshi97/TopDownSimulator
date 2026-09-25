@@ -17,7 +17,7 @@ Eine Anwendung, mit der Feuerwehr-Führungskräfte aller Ebenen (Gruppe, Zug, Ve
 
 ### Kernidee: Befehle → Ereignisse → Zustand
 
-Jede Änderung am Spiel (Fahrzeug bewegen, Feuer einspielen, Befehl geben) ist ein **Befehl** (Command). Die Engine prüft ihn und erzeugt daraus ein oder mehrere **Ereignisse** (Events), z. B. `EinheitVerschoben` oder `LageobjektHinzugefuegt`. Der aktuelle **Spielstand** ergibt sich aus allen Ereignissen der Reihe nach.
+Jede Änderung am Spiel (Fahrzeug bewegen, Feuer einspielen, Befehl geben) ist ein **Befehl** (Command). Die Engine prüft ihn und erzeugt daraus ein oder mehrere **Ereignisse** (Events), z. B. `UnitMoved` oder `SituationObjectAdded`. Der aktuelle **Spielstand** ergibt sich aus allen Ereignissen der Reihe nach.
 
 Warum das wichtig ist:
 
