@@ -2,7 +2,7 @@
 
 Digitales Planspiel für die Feuerwehr: Einsatzsituationen in der Draufsicht darstellen, taktische und strategische Entscheidungen üben, Übungen nachbesprechen.
 
-Status: Phase 0 (Grundgerüst). Planung und Architektur: [docs/PLAN.md](docs/PLAN.md).
+Status: Phase 1 (lokales Planspiel). Planung und Architektur: [docs/PLAN.md](docs/PLAN.md). Arbeitsablauf mit Feature-Branches: [docs/WORKFLOW.md](docs/WORKFLOW.md).
 
 ## Voraussetzungen
 
@@ -17,15 +17,15 @@ npm run dev     # Web-App starten → http://localhost:5173
 
 ## Befehle
 
-| Befehl | Zweck |
-|---|---|
-| `npm run dev` | Entwicklungsserver mit automatischem Neuladen |
-| `npm test` | Tests einmal ausführen (`npm run test:watch` für Dauerbetrieb) |
-| `npm run typecheck` | TypeScript-Typprüfung aller Pakete |
-| `npm run lint` | Code auf typische Fehler prüfen (ESLint) |
-| `npm run format` | Code einheitlich formatieren (Prettier) |
-| `npm run check` | Typprüfung, Linting und Tests zusammen |
-| `npm run build` | Produktionsversion nach `apps/client/dist` bauen |
+| Befehl              | Zweck                                                          |
+| ------------------- | -------------------------------------------------------------- |
+| `npm run dev`       | Entwicklungsserver mit automatischem Neuladen                  |
+| `npm test`          | Tests einmal ausführen (`npm run test:watch` für Dauerbetrieb) |
+| `npm run typecheck` | TypeScript-Typprüfung aller Pakete                             |
+| `npm run lint`      | Code auf typische Fehler prüfen (ESLint)                       |
+| `npm run format`    | Code einheitlich formatieren (Prettier)                        |
+| `npm run check`     | Typprüfung, Linting und Tests zusammen                         |
+| `npm run build`     | Produktionsversion nach `apps/client/dist` bauen               |
 
 ## Aufbau
 
