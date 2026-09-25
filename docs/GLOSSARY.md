@@ -59,3 +59,15 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 | Nachbesprechung           | `Debriefing`       |
 | Karte                     | `Map`              |
 | Präsentationsmodus/Beamer | `PresentationView` |
+
+## Katalog
+
+| Deutsch                       | Englisch im Code     |
+| ----------------------------- | -------------------- |
+| Katalog / Stammdaten          | `Catalog`            |
+| Einheitentyp (Katalogeintrag) | `UnitTypeDefinition` |
+| Grundzeichen                  | `SymbolShape`        |
+| Organisation                  | `Organization`       |
+| Feuerwehr (Organisation)      | `fire`               |
+| Rettungsdienst (Organisation) | `ems`                |
+| Werkzeug (Oberfläche)         | `Tool`               |

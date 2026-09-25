@@ -103,3 +103,79 @@ body {
 .map-overlay button:hover {
   background: #fff;
 }
+
+/* Beim Platzieren zeigt der Mauszeiger ein Fadenkreuz. */
+.map-canvas--placing {
+  cursor: crosshair;
+}
+
+.map-hint {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.toolbar {
+  position: absolute;
+  top: 72px;
+  left: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+}
+
+.toolbar h2 {
+  margin: 0 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #666;
+}
+
+.toolbar-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 48px);
+  gap: 6px;
+}
+
+.toolbar-button {
+  height: 30px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1.5px solid #1a1a1a;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.toolbar-button--fire {
+  background: var(--accent);
+  color: #fff;
+}
+
+.toolbar-button--ems {
+  background: #fff;
+  color: #1a1a1a;
+}
+
+.toolbar-button:hover {
+  filter: brightness(1.1);
+}
+
+.toolbar-button[aria-pressed='true'] {
+  outline: 3px solid #1a1a1a;
+  outline-offset: 2px;
+}

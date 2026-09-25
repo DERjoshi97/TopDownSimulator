@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { formatExerciseTime } from '@tds/engine';
 import { MapCanvas } from './map/MapCanvas';
+import { useGameStore } from './store/gameStore';
+import { UnitToolbar } from './toolbar/UnitToolbar';
 
 export function App() {
-  const [startedAt] = useState(() => Date.now());
-  const [now, setNow] = useState(startedAt);
+  const startedAt = useGameStore((s) => s.startedAt);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -20,6 +22,7 @@ export function App() {
           {formatExerciseTime(now - startedAt)}
         </span>
       </header>
+      <UnitToolbar />
     </main>
   );
 }
