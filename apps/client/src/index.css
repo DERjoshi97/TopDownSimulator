@@ -1,0 +1,22 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #f4f4f2;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  display: grid;
+  place-content: center;
+  min-height: 100vh;
+  text-align: center;
+}
+
+.clock {
+  font-family: ui-monospace, monospace;
+  font-size: 3rem;
+  color: #c8102e;
+}
