@@ -117,3 +117,10 @@ docs/         Planung, Fachkonzept, Entscheidungen.
 ## Offene Punkte
 
 - Taktische Zeichen: Quelle/Lizenz der Symbole klären (z. B. frei verfügbare SVG-Sammlungen) oder selbst zeichnen.
+- **3D-Ansicht aus Sicht des Einsatzleiters**: Neben der Draufsicht eine perspektivische Ansicht, in der man das Geschehen so sieht wie der Einsatzleiter vor Ort – Gebäude, Fahrzeuge, Feuer und Rauch aus Augenhöhe statt als Lagekarte. Zu klären:
+  - **Blickpunkt**: fest an einer Position (z. B. am ELW), frei begehbar oder an eine Einheit gebunden?
+  - **Wer sieht sie**: eher die Übenden als die Übungsleitung. Dann gilt die Sichtbarkeit der Lageobjekte – ein Brand, der noch nicht erkundet ist, darf dort nicht zu sehen sein.
+  - **Detailgrad**: einfache Klötze und Flächen oder echte 3D-Modelle?
+  - **Technik**: z. B. Three.js als zweite Darstellung neben PixiJS. Die Engine bleibt unverändert, weil sie keine Oberfläche kennt und in Metern rechnet.
+  - **Phase**: frühestens nach dem Karteneditor (Phase 1, Punkt 5), weil es ohne Gebäude wenig zu sehen gibt.
+  - **Folge schon für Punkt 5**: Gebäude sollten von Anfang an Höhe bzw. Geschosszahl bekommen, damit sie später in 3D dargestellt werden können.
