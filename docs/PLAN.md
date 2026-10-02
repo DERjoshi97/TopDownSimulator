@@ -52,18 +52,19 @@ docs/         Planung, Fachkonzept, Entscheidungen.
 
 ## Tech-Stack
 
-| Bereich                   | Wahl                                               | Begründung                                                                          |
-| ------------------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Sprache                   | **TypeScript**                                     | Eine Sprache für Oberfläche, Engine und Server; Typen fangen viele Fehler früh ab   |
-| Laufzeit / Pakete         | **Node.js (LTS) + npm Workspaces**                 | Standard, ein Repository für alle Bausteine                                         |
-| Oberfläche                | **React** + **Vite**                               | Verbreitet, gute Dokumentation, schneller Entwicklungsserver                        |
-| Kartendarstellung         | **PixiJS** (WebGL)                                 | Performant auch bei vielen Objekten (Verbandsebene), Zoomen/Verschieben flüssig     |
-| Echte Karten (später)     | **MapLibre GL** + OpenStreetMap                    | Freie Kartendaten; Pixi-Ebene liegt darüber, dank Meter-Koordinaten mit Georeferenz |
-| Zustand in der Oberfläche | **Zustand** (Bibliothek)                           | Schlank, verbindet Engine-Zustand mit React                                         |
-| Mehrspieler (später)      | **WebSockets** (Socket.IO)                         | Engine läuft serverseitig, Clients erhalten Ereignisse                              |
-| Speicherung               | Anfangs JSON-Dateien, später **SQLite/PostgreSQL** | Szenarien und Übungsprotokolle                                                      |
-| Tests                     | **Vitest**                                         | Engine-Logik gut testbar, weil ohne Oberfläche                                      |
-| Automatik/KI (später)     | Regel-Engine + optional Claude API                 | Generierte Rückmeldungen, Szenario-Vorschläge                                       |
+| Bereich                   | Wahl                                               | Begründung                                                                               |
+| ------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Sprache                   | **TypeScript**                                     | Eine Sprache für Oberfläche, Engine und Server; Typen fangen viele Fehler früh ab        |
+| Laufzeit / Pakete         | **Node.js (LTS) + npm Workspaces**                 | Standard, ein Repository für alle Bausteine                                              |
+| Oberfläche                | **React** + **Vite**                               | Verbreitet, gute Dokumentation, schneller Entwicklungsserver                             |
+| Kartendarstellung         | **PixiJS** (WebGL)                                 | Performant auch bei vielen Objekten (Verbandsebene), Zoomen/Verschieben flüssig          |
+| Echte Karten (später)     | **MapLibre GL** + OpenStreetMap                    | Freie Kartendaten; Pixi-Ebene liegt darüber, dank Meter-Koordinaten mit Georeferenz      |
+| 3D-Ansicht (später)       | **Three.js**                                       | Verbreitet und schlank; nutzt dieselben Meter-Koordinaten, wird erst beim Öffnen geladen |
+| Zustand in der Oberfläche | **Zustand** (Bibliothek)                           | Schlank, verbindet Engine-Zustand mit React                                              |
+| Mehrspieler (später)      | **WebSockets** (Socket.IO)                         | Engine läuft serverseitig, Clients erhalten Ereignisse                                   |
+| Speicherung               | Anfangs JSON-Dateien, später **SQLite/PostgreSQL** | Szenarien und Übungsprotokolle                                                           |
+| Tests                     | **Vitest**                                         | Engine-Logik gut testbar, weil ohne Oberfläche                                           |
+| Automatik/KI (später)     | Regel-Engine + optional Claude API                 | Generierte Rückmeldungen, Szenario-Vorschläge                                            |
 
 ## Phasen
 
@@ -121,6 +122,6 @@ docs/         Planung, Fachkonzept, Entscheidungen.
   - **Blickpunkt**: fest an einer Position (z. B. am ELW), frei begehbar oder an eine Einheit gebunden?
   - **Wer sieht sie**: eher die Übenden als die Übungsleitung. Dann gilt die Sichtbarkeit der Lageobjekte – ein Brand, der noch nicht erkundet ist, darf dort nicht zu sehen sein.
   - **Detailgrad**: einfache Klötze und Flächen oder echte 3D-Modelle?
-  - **Technik**: z. B. Three.js als zweite Darstellung neben PixiJS. Die Engine bleibt unverändert, weil sie keine Oberfläche kennt und in Metern rechnet.
+  - **Technik** (eingeschätzt, passt ohne Umbau): Three.js als zweite Darstellung neben PixiJS. Die Engine bleibt unverändert, weil sie keine Oberfläche kennt und in Metern rechnet. Eine `SceneView` kann wie `MapView` aufgebaut sein und dieselben `MapItem`s verwenden. Neu nötig: reale Maße je Typ im Katalog (z. B. HLF ca. 8 × 2,5 × 3 m), Darstellung von Feuer und Rauch, Kamerasteuerung. Grenze: Die Engine rechnet in 2D – flache Einsatzstellen und Etagen (per Geschossnummer) gehen, Gelände mit Höhen bräuchte ein Höhenmodell.
   - **Phase**: frühestens nach dem Karteneditor (Phase 1, Punkt 5), weil es ohne Gebäude wenig zu sehen gibt.
   - **Folge schon für Punkt 5**: Gebäude sollten von Anfang an Höhe bzw. Geschosszahl bekommen, damit sie später in 3D dargestellt werden können.
