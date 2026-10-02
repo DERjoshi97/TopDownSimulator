@@ -53,11 +53,26 @@ describe('hitTestItems', () => {
     expect(hitTestItems(rotated, camera, viewport, { x: 400 + 24, y: 300 })).toBeUndefined();
   });
 
-  it('trifft eine Fläche innerhalb ihres Radius', () => {
-    // 5 m Radius bei 10 px/m = 50 px
+  describe('Fläche mit 5 m Radius (bei 10 px/m = 50 px)', () => {
     const area = [fire('f', 0, 0, 5)];
-    expect(hitTestItems(area, camera, viewport, { x: 400 + 45, y: 300 })?.ref.id).toBe('f');
-    expect(hitTestItems(area, camera, viewport, { x: 400 + 55, y: 300 })).toBeUndefined();
+    const hit = (x: number, y: number) => hitTestItems(area, camera, viewport, { x, y })?.ref.id;
+
+    it('wird am Zeichen in der Mitte getroffen', () => {
+      expect(hit(400, 300)).toBe('f');
+    });
+
+    it('wird knapp innerhalb und außerhalb des Kreisrands getroffen', () => {
+      expect(hit(400 + 46, 300)).toBe('f');
+      expect(hit(400, 300 - 54)).toBe('f');
+    });
+
+    it('lässt das Innere frei, damit man dort die Karte verschieben kann', () => {
+      expect(hit(400 + 30, 300)).toBeUndefined();
+    });
+
+    it('wird weit außerhalb nicht getroffen', () => {
+      expect(hit(400 + 60, 300)).toBeUndefined();
+    });
   });
 
   it('bevorzugt eine Einheit, die auf einer Fläche steht', () => {

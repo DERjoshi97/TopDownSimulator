@@ -14,10 +14,14 @@ export const ROTATION_STEP = 15;
 /** Zusätzlicher Rand in Pixeln, damit man Zeichen nicht pixelgenau treffen muss. */
 const HIT_MARGIN = 4;
 
+/** So viele Pixel innen und außen am Kreisrand einer Fläche zählen als Treffer. */
+const AREA_EDGE_TOLERANCE = 6;
+
 /**
  * Findet das Objekt, das unter `screenPoint` liegt.
  * Bei Überlappung gewinnt das zuletzt gezeichnete (also das oben liegende).
- * Flächen werden auch innerhalb ihres Kreises getroffen, nicht nur an ihrem Zeichen.
+ * Flächen werden nur an ihrem Zeichen und am Kreisrand getroffen, nicht im Inneren:
+ * Sonst ließe sich die Karte nicht mehr verschieben, wenn eine große Fläche den Bildschirm füllt.
  */
 export function hitTestItems(
   items: readonly MapItem[],
@@ -29,7 +33,10 @@ export function hitTestItems(
     const item = items[i]!;
     const center = worldToScreen(camera, viewport, item.position);
     const offset = { x: screenPoint.x - center.x, y: screenPoint.y - center.y };
-    if (isArea(item) && Math.hypot(offset.x, offset.y) <= item.radius * camera.scale) {
+    if (
+      isArea(item) &&
+      Math.abs(Math.hypot(offset.x, offset.y) - item.radius * camera.scale) <= AREA_EDGE_TOLERANCE
+    ) {
       return item;
     }
     // Punkt in das Koordinatensystem des Zeichens zurückdrehen, dann reicht ein einfacher Rechteck-Test.
