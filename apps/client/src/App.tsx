@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { formatExerciseTime } from '@tds/engine';
 import { MapCanvas } from './map/MapCanvas';
+import { SelectionPanel } from './selection/SelectionPanel';
 import { useGameStore } from './store/gameStore';
 import { UnitToolbar } from './toolbar/UnitToolbar';
 
@@ -23,6 +24,7 @@ export function App() {
         </span>
       </header>
       <UnitToolbar />
+      <SelectionPanel />
     </main>
   );
 }

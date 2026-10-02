@@ -179,3 +179,53 @@ body {
   outline: 3px solid #1a1a1a;
   outline-offset: 2px;
 }
+
+.selection-panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  min-width: 180px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.selection-panel h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.selection-panel p {
+  margin: 2px 0 0;
+}
+
+.selection-panel-rotation {
+  color: #666;
+  font-variant-numeric: tabular-nums;
+}
+
+.selection-panel-buttons {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.selection-panel-buttons button {
+  padding: 4px 10px;
+  font: inherit;
+  background: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.selection-panel-buttons button:hover {
+  border-color: #1a1a1a;
+}
+
+.selection-panel-buttons .selection-panel-remove {
+  margin-left: auto;
+  color: var(--accent);
+}
