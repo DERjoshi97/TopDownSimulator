@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Vec2 } from '@tds/engine';
-import { findUnitType } from '@tds/catalog';
 import { useGameStore } from '../store/gameStore';
 import { useToolStore } from '../store/toolStore';
 import { MapView } from './MapView';
 import { defaultCamera, formatDistance, scaleBar, type Camera } from './camera';
+import { moveCommand, placeCommand, rotateCommand } from './itemCommands';
+import { mapItemsFromState, typeName } from './mapItems';
 
 /**
  * React-Hülle um die PixiJS-Kartenansicht, mit Maßstabsleiste und Mauskoordinaten darüber.
@@ -15,7 +16,7 @@ export function MapCanvas() {
   const viewRef = useRef<MapView | undefined>(undefined);
   const [camera, setCamera] = useState<Camera>(defaultCamera);
   const [cursor, setCursor] = useState<Vec2 | undefined>();
-  const activeUnitType = useToolStore((s) => s.activeUnitType);
+  const activeTool = useToolStore((s) => s.activeTool);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -27,29 +28,29 @@ export function MapCanvas() {
       onCameraChange: setCamera,
       onCursorMove: setCursor,
       onMapClick: (world, { shiftKey }) => {
-        const { activeUnitType, selectUnit } = useToolStore.getState();
+        const { activeTool, select } = useToolStore.getState();
         // Klick ins Leere ohne Werkzeug hebt die Auswahl auf.
-        if (!activeUnitType) {
-          selectUnit(undefined);
+        if (!activeTool) {
+          select(undefined);
           return;
         }
-        const unitId = crypto.randomUUID();
-        const result = useGameStore.getState().execute({
-          type: 'PlaceUnit',
-          unitId,
-          unitType: activeUnitType,
-          position: world,
-        });
-        // Mit gedrückter Umschalttaste bleibt das Werkzeug aktiv, um mehrere Einheiten zu setzen.
-        // Sonst wird die neue Einheit gleich ausgewählt, damit man sie direkt drehen kann.
-        if (!shiftKey && result.ok) selectUnit(unitId);
+        const id = crypto.randomUUID();
+        const result = useGameStore.getState().execute(placeCommand(activeTool, id, world));
+        // Mit gedrückter Umschalttaste bleibt das Werkzeug aktiv, um mehrere Objekte zu setzen.
+        // Sonst wird das neue Objekt gleich ausgewählt, damit man es direkt anpassen kann.
+        if (!shiftKey && result.ok) select({ kind: activeTool.kind, id });
       },
-      onUnitSelect: (unitId) => useToolStore.getState().selectUnit(unitId),
-      onUnitDragEnd: (unitId, position) => {
-        useGameStore.getState().execute({ type: 'MoveUnit', unitId, position });
+      onItemSelect: (ref) => useToolStore.getState().select(ref),
+      onItemMoveEnd: (ref, position) => {
+        useGameStore.getState().execute(moveCommand(ref, position));
       },
-      onUnitRotateEnd: (unitId, rotation) => {
-        useGameStore.getState().execute({ type: 'RotateUnit', unitId, rotation });
+      onItemRotateEnd: (ref, rotation) => {
+        useGameStore.getState().execute(rotateCommand(ref, rotation));
+      },
+      onItemResizeEnd: (ref, radius) => {
+        useGameStore
+          .getState()
+          .execute({ type: 'ResizeSituationObject', objectId: ref.id, radius });
       },
     });
 
@@ -63,11 +64,11 @@ export function MapCanvas() {
         return;
       }
       viewRef.current = v;
-      v.setUnits(useGameStore.getState().state.units);
-      v.setSelection(useToolStore.getState().selectedUnitId);
+      v.setItems(mapItemsFromState(useGameStore.getState().state));
+      v.setSelection(useToolStore.getState().selection);
       unsubscribers.push(
-        useGameStore.subscribe((s) => v.setUnits(s.state.units)),
-        useToolStore.subscribe((s) => v.setSelection(s.selectedUnitId)),
+        useGameStore.subscribe((s) => v.setItems(mapItemsFromState(s.state))),
+        useToolStore.subscribe((s) => v.setSelection(s.selection)),
       );
     });
 
@@ -80,14 +81,11 @@ export function MapCanvas() {
   }, []);
 
   const bar = scaleBar(camera.scale);
-  const activeName = activeUnitType && (findUnitType(activeUnitType)?.name ?? activeUnitType);
+  const activeName = activeTool && typeName(activeTool.kind, activeTool.typeId);
 
   return (
     <div className="map">
-      <div
-        ref={containerRef}
-        className={`map-canvas${activeUnitType ? ' map-canvas--placing' : ''}`}
-      />
+      <div ref={containerRef} className={`map-canvas${activeTool ? ' map-canvas--placing' : ''}`} />
 
       {activeName && (
         <div className="map-hint" role="status">

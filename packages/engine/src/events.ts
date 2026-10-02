@@ -1,5 +1,5 @@
 import type { Vec2 } from './geometry';
-import type { UnitId } from './state';
+import type { SituationObjectId, UnitId, Visibility } from './state';
 
 // Ereignisse beschreiben, was tatsächlich *passiert ist* (daher Vergangenheitsform).
 // Sie sind bereits geprüft und werden nie verändert oder gelöscht –
@@ -37,4 +37,55 @@ export interface UnitRemoved extends BaseEvent {
   readonly unitId: UnitId;
 }
 
-export type GameEvent = UnitPlaced | UnitMoved | UnitRotated | UnitRemoved;
+export interface SituationObjectPlaced extends BaseEvent {
+  readonly type: 'SituationObjectPlaced';
+  readonly objectId: SituationObjectId;
+  readonly objectType: string;
+  readonly position: Vec2;
+  readonly rotation: number;
+  /** Nur bei Flächen vorhanden. */
+  readonly radius?: number;
+  readonly visibility: Visibility;
+}
+
+export interface SituationObjectMoved extends BaseEvent {
+  readonly type: 'SituationObjectMoved';
+  readonly objectId: SituationObjectId;
+  readonly from: Vec2;
+  readonly to: Vec2;
+}
+
+export interface SituationObjectRotated extends BaseEvent {
+  readonly type: 'SituationObjectRotated';
+  readonly objectId: SituationObjectId;
+  readonly rotation: number;
+}
+
+export interface SituationObjectResized extends BaseEvent {
+  readonly type: 'SituationObjectResized';
+  readonly objectId: SituationObjectId;
+  readonly radius: number;
+}
+
+export interface SituationObjectVisibilityChanged extends BaseEvent {
+  readonly type: 'SituationObjectVisibilityChanged';
+  readonly objectId: SituationObjectId;
+  readonly visibility: Visibility;
+}
+
+export interface SituationObjectRemoved extends BaseEvent {
+  readonly type: 'SituationObjectRemoved';
+  readonly objectId: SituationObjectId;
+}
+
+export type GameEvent =
+  | UnitPlaced
+  | UnitMoved
+  | UnitRotated
+  | UnitRemoved
+  | SituationObjectPlaced
+  | SituationObjectMoved
+  | SituationObjectRotated
+  | SituationObjectResized
+  | SituationObjectVisibilityChanged
+  | SituationObjectRemoved;

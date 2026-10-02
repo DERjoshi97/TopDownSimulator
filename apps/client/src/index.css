@@ -180,11 +180,61 @@ body {
   outline-offset: 2px;
 }
 
+/* Lageobjekte: eine Spalte, weil die Namen länger sind als die Fahrzeugkürzel. */
+.toolbar-buttons--list {
+  grid-template-columns: 1fr;
+}
+
+.toolbar-button--situation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  background: #fff;
+  color: #1a1a1a;
+  font-weight: 600;
+  text-align: left;
+}
+
+.swatch {
+  width: 12px;
+  height: 12px;
+  border: 1px solid #1a1a1a;
+  border-radius: 50%;
+}
+
+.swatch--fire {
+  background: #e8590c;
+}
+
+.swatch--smoke {
+  background: #8a8a8a;
+}
+
+.swatch--hazardous-material {
+  background: #f59f00;
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+}
+
+.swatch--person {
+  background: #1a1a1a;
+}
+
+.swatch--cordon {
+  height: 6px;
+  border-radius: 0;
+  background: repeating-linear-gradient(90deg, #c8102e 0 3px, #fff 3px 6px);
+}
+
 .selection-panel {
   position: absolute;
   top: 12px;
   right: 12px;
-  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 220px;
   padding: 10px 14px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
@@ -197,22 +247,23 @@ body {
   font-size: 1rem;
 }
 
-.selection-panel p {
-  margin: 2px 0 0;
+.selection-panel-name {
+  margin: -6px 0 0;
 }
 
-.selection-panel-rotation {
-  color: #666;
+.selection-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-variant-numeric: tabular-nums;
 }
 
-.selection-panel-buttons {
-  display: flex;
-  gap: 6px;
-  margin-top: 10px;
+.selection-panel-row span {
+  flex: 1;
+  color: #444;
 }
 
-.selection-panel-buttons button {
+.selection-panel button {
   padding: 4px 10px;
   font: inherit;
   background: #fff;
@@ -221,11 +272,38 @@ body {
   cursor: pointer;
 }
 
-.selection-panel-buttons button:hover {
+.selection-panel button:hover:not(:disabled) {
   border-color: #1a1a1a;
 }
 
-.selection-panel-buttons .selection-panel-remove {
-  margin-left: auto;
+.selection-panel button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.selection-panel-visibility {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin: 0;
+  padding: 6px 8px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+}
+
+.selection-panel-visibility legend {
+  padding: 0 4px;
+  color: #666;
+}
+
+.selection-panel-visibility label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.selection-panel .selection-panel-remove {
+  align-self: flex-end;
   color: var(--accent);
 }
