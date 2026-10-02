@@ -1,70 +1,110 @@
 import { describe, expect, it } from 'vitest';
-import type { Unit } from '@tds/engine';
 import {
-  ROTATION_HANDLE_OFFSET,
-  hitTestRotationHandle,
-  hitTestUnits,
+  hitTestHandle,
+  hitTestItems,
+  resizeHandlePosition,
+  rotationHandleOffset,
   rotationHandlePosition,
   rotationTowards,
 } from './hitTest';
+import { situationObjectItem, unitItem, type MapItem } from './mapItems';
 
 const viewport = { width: 800, height: 600 };
 const camera = { center: { x: 0, y: 0 }, scale: 10 };
 
-const unit = (id: string, x: number, y: number, rotation = 0): Unit => ({
-  id,
-  unitType: 'HLF',
-  position: { x, y },
-  rotation,
-});
+const unit = (id: string, x: number, y: number, rotation = 0): MapItem =>
+  unitItem({ id, unitType: 'HLF', position: { x, y }, rotation });
 
-describe('hitTestUnits', () => {
+const fire = (id: string, x: number, y: number, radius: number): MapItem =>
+  situationObjectItem({
+    id,
+    objectType: 'fire',
+    position: { x, y },
+    rotation: 0,
+    radius,
+    visibility: 'everyone',
+  });
+
+describe('hitTestItems', () => {
   // Einheit bei (0|0) liegt in der Fenstermitte (400|300).
-  const units = [unit('a', 0, 0)];
+  const items = [unit('a', 0, 0)];
 
   it('trifft eine Einheit in der Mitte ihres Zeichens', () => {
-    expect(hitTestUnits(units, camera, viewport, { x: 400, y: 300 })?.id).toBe('a');
+    expect(hitTestItems(items, camera, viewport, { x: 400, y: 300 })?.ref.id).toBe('a');
   });
 
   it('trifft auch knapp neben dem Rand', () => {
-    expect(hitTestUnits(units, camera, viewport, { x: 400 + 24, y: 300 })?.id).toBe('a');
+    expect(hitTestItems(items, camera, viewport, { x: 400 + 24, y: 300 })?.ref.id).toBe('a');
   });
 
   it('trifft nichts weiter weg', () => {
-    expect(hitTestUnits(units, camera, viewport, { x: 400 + 40, y: 300 })).toBeUndefined();
+    expect(hitTestItems(items, camera, viewport, { x: 400 + 40, y: 300 })).toBeUndefined();
   });
 
-  it('wählt bei Überlappung die oben liegende Einheit', () => {
+  it('wählt bei Überlappung das oben liegende Objekt', () => {
     const overlapping = [unit('unten', 0, 0), unit('oben', 1, 0)];
-    expect(hitTestUnits(overlapping, camera, viewport, { x: 405, y: 300 })?.id).toBe('oben');
+    expect(hitTestItems(overlapping, camera, viewport, { x: 405, y: 300 })?.ref.id).toBe('oben');
   });
 
   it('berücksichtigt die Drehung des Zeichens', () => {
     // Um 90° gedreht steht das 44 × 26 px breite Zeichen hochkant.
     const rotated = [unit('a', 0, 0, 90)];
-    expect(hitTestUnits(rotated, camera, viewport, { x: 400, y: 300 + 24 })?.id).toBe('a');
-    expect(hitTestUnits(rotated, camera, viewport, { x: 400 + 24, y: 300 })).toBeUndefined();
+    expect(hitTestItems(rotated, camera, viewport, { x: 400, y: 300 + 24 })?.ref.id).toBe('a');
+    expect(hitTestItems(rotated, camera, viewport, { x: 400 + 24, y: 300 })).toBeUndefined();
+  });
+
+  describe('Fläche mit 5 m Radius (bei 10 px/m = 50 px)', () => {
+    const area = [fire('f', 0, 0, 5)];
+    const hit = (x: number, y: number) => hitTestItems(area, camera, viewport, { x, y })?.ref.id;
+
+    it('wird am Zeichen in der Mitte getroffen', () => {
+      expect(hit(400, 300)).toBe('f');
+    });
+
+    it('wird knapp innerhalb und außerhalb des Kreisrands getroffen', () => {
+      expect(hit(400 + 46, 300)).toBe('f');
+      expect(hit(400, 300 - 54)).toBe('f');
+    });
+
+    it('lässt das Innere frei, damit man dort die Karte verschieben kann', () => {
+      expect(hit(400 + 30, 300)).toBeUndefined();
+    });
+
+    it('wird weit außerhalb nicht getroffen', () => {
+      expect(hit(400 + 60, 300)).toBeUndefined();
+    });
+  });
+
+  it('bevorzugt eine Einheit, die auf einer Fläche steht', () => {
+    const stacked = [fire('f', 0, 0, 5), unit('u', 0, 0)];
+    expect(hitTestItems(stacked, camera, viewport, { x: 400, y: 300 })?.ref.id).toBe('u');
   });
 });
 
 describe('Drehgriff', () => {
   const center = { x: 400, y: 300 };
+  const offset = rotationHandleOffset(unit('a', 0, 0).size.height);
 
   it('liegt ohne Drehung über dem Zeichen', () => {
-    expect(rotationHandlePosition(center, 0)).toEqual({ x: 400, y: 300 - ROTATION_HANDLE_OFFSET });
+    expect(rotationHandlePosition(center, unit('a', 0, 0))).toEqual({ x: 400, y: 300 - offset });
   });
 
   it('wandert bei 90° nach rechts', () => {
-    const handle = rotationHandlePosition(center, 90);
-    expect(handle.x).toBeCloseTo(400 + ROTATION_HANDLE_OFFSET);
+    const handle = rotationHandlePosition(center, unit('a', 0, 0, 90));
+    expect(handle.x).toBeCloseTo(400 + offset);
     expect(handle.y).toBeCloseTo(300);
   });
 
   it('wird nur in seiner Nähe getroffen', () => {
-    expect(hitTestRotationHandle(center, 0, { x: 403, y: 300 - ROTATION_HANDLE_OFFSET })).toBe(
-      true,
-    );
-    expect(hitTestRotationHandle(center, 0, center)).toBe(false);
+    const handle = rotationHandlePosition(center, unit('a', 0, 0));
+    expect(hitTestHandle(handle, { x: 403, y: 300 - offset })).toBe(true);
+    expect(hitTestHandle(handle, center)).toBe(false);
+  });
+});
+
+describe('Größen-Griff', () => {
+  it('liegt rechts auf dem Kreisrand', () => {
+    expect(resizeHandlePosition({ x: 400, y: 300 }, 50)).toEqual({ x: 450, y: 300 });
   });
 });
 
@@ -81,6 +121,7 @@ describe('rotationTowards', () => {
   });
 
   it('passt zur Lage des Drehgriffs', () => {
-    expect(rotationTowards(center, rotationHandlePosition(center, 135))).toBeCloseTo(135);
+    const handle = rotationHandlePosition(center, unit('a', 0, 0, 135));
+    expect(rotationTowards(center, handle)).toBeCloseTo(135);
   });
 });

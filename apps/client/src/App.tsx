@@ -3,7 +3,7 @@ import { formatExerciseTime } from '@tds/engine';
 import { MapCanvas } from './map/MapCanvas';
 import { SelectionPanel } from './selection/SelectionPanel';
 import { useGameStore } from './store/gameStore';
-import { UnitToolbar } from './toolbar/UnitToolbar';
+import { Toolbar } from './toolbar/Toolbar';
 
 export function App() {
   const startedAt = useGameStore((s) => s.startedAt);
@@ -23,7 +23,7 @@ export function App() {
           {formatExerciseTime(now - startedAt)}
         </span>
       </header>
-      <UnitToolbar />
+      <Toolbar />
       <SelectionPanel />
     </main>
   );

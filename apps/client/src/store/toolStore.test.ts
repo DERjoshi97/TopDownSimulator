@@ -1,32 +1,29 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useToolStore } from './toolStore';
 
+const hlf = { kind: 'unit', id: 'hlf-1' } as const;
+const lfTool = { kind: 'unit', typeId: 'LF' } as const;
+
 describe('useToolStore', () => {
   beforeEach(() => {
-    useToolStore.setState({ activeUnitType: undefined, selectedUnitId: undefined });
+    useToolStore.setState({ activeTool: undefined, selection: undefined });
   });
 
   it('hebt die Auswahl auf, wenn ein Werkzeug gewählt wird', () => {
-    useToolStore.getState().selectUnit('hlf-1');
-    useToolStore.getState().selectUnitType('LF');
-    expect(useToolStore.getState()).toMatchObject({
-      activeUnitType: 'LF',
-      selectedUnitId: undefined,
-    });
+    useToolStore.getState().select(hlf);
+    useToolStore.getState().selectTool(lfTool);
+    expect(useToolStore.getState()).toMatchObject({ activeTool: lfTool, selection: undefined });
   });
 
-  it('beendet das Platzieren, wenn eine Einheit ausgewählt wird', () => {
-    useToolStore.getState().selectUnitType('LF');
-    useToolStore.getState().selectUnit('hlf-1');
-    expect(useToolStore.getState()).toMatchObject({
-      activeUnitType: undefined,
-      selectedUnitId: 'hlf-1',
-    });
+  it('beendet das Platzieren, wenn ein Objekt ausgewählt wird', () => {
+    useToolStore.getState().selectTool(lfTool);
+    useToolStore.getState().select(hlf);
+    expect(useToolStore.getState()).toMatchObject({ activeTool: undefined, selection: hlf });
   });
 
   it('lässt beim Abwählen das jeweils andere unverändert', () => {
-    useToolStore.getState().selectUnit('hlf-1');
-    useToolStore.getState().selectUnitType(undefined);
-    expect(useToolStore.getState().selectedUnitId).toBe('hlf-1');
+    useToolStore.getState().select(hlf);
+    useToolStore.getState().selectTool(undefined);
+    expect(useToolStore.getState().selection).toBe(hlf);
   });
 });

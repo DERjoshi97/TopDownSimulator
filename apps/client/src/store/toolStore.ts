@@ -1,13 +1,20 @@
 import { create } from 'zustand';
-import type { UnitId } from '@tds/engine';
+import type { MapItemRef } from '../map/mapItems';
+
+/** Was beim nächsten Klick auf die Karte platziert wird: eine Einheit oder ein Lageobjekt. */
+export interface PlacementTool {
+  readonly kind: MapItemRef['kind'];
+  /** Kennung des Typs im Katalog, z. B. "HLF" oder "fire". */
+  readonly typeId: string;
+}
 
 interface ToolStore {
-  /** Einheitentyp, der beim nächsten Klick auf die Karte platziert wird. `undefined` = kein Werkzeug. */
-  readonly activeUnitType: string | undefined;
-  readonly selectUnitType: (unitType: string | undefined) => void;
-  /** Auf der Karte ausgewählte Einheit, auf die sich Drehen und Entfernen beziehen. */
-  readonly selectedUnitId: UnitId | undefined;
-  readonly selectUnit: (unitId: UnitId | undefined) => void;
+  /** Aktives Platzier-Werkzeug. `undefined` = kein Werkzeug. */
+  readonly activeTool: PlacementTool | undefined;
+  readonly selectTool: (tool: PlacementTool | undefined) => void;
+  /** Auf der Karte ausgewähltes Objekt, auf das sich Drehen, Größe und Entfernen beziehen. */
+  readonly selection: MapItemRef | undefined;
+  readonly select: (ref: MapItemRef | undefined) => void;
 }
 
 /**
@@ -16,18 +23,13 @@ interface ToolStore {
  * und umgekehrt.
  */
 export const useToolStore = create<ToolStore>()((set) => ({
-  activeUnitType: undefined,
-  selectUnitType: (unitType) =>
-    set(
-      unitType
-        ? { activeUnitType: unitType, selectedUnitId: undefined }
-        : { activeUnitType: undefined },
-    ),
-  selectedUnitId: undefined,
-  selectUnit: (unitId) =>
-    set(
-      unitId
-        ? { selectedUnitId: unitId, activeUnitType: undefined }
-        : { selectedUnitId: undefined },
-    ),
+  activeTool: undefined,
+  selectTool: (tool) =>
+    set(tool ? { activeTool: tool, selection: undefined } : { activeTool: undefined }),
+  selection: undefined,
+  select: (ref) => set(ref ? { selection: ref, activeTool: undefined } : { selection: undefined }),
 }));
+
+export function isSameTool(a: PlacementTool | undefined, b: PlacementTool): boolean {
+  return a?.kind === b.kind && a.typeId === b.typeId;
+}

@@ -13,14 +13,42 @@ export interface Unit {
   readonly rotation: number;
 }
 
+/** Eindeutige Kennung eines Lageobjekts. Wird wie `UnitId` vom Aufrufer erzeugt. */
+export type SituationObjectId = string;
+
+/**
+ * Wer ein Lageobjekt sehen darf:
+ * - `director`: nur die Übungsleitung, z. B. ein Brand, der noch nicht entdeckt ist
+ * - `reconnoitered`: wer es erkundet hat
+ * - `everyone`: alle
+ */
+export type Visibility = 'director' | 'reconnoitered' | 'everyone';
+
+export const visibilities: readonly Visibility[] = ['director', 'reconnoitered', 'everyone'];
+
+/** Ein Lageobjekt auf der Karte, z. B. Feuer, Rauch, eine Person oder eine Absperrung. */
+export interface SituationObject {
+  readonly id: SituationObjectId;
+  /** Kennung des Typs im Katalog, z. B. "fire". */
+  readonly objectType: string;
+  readonly position: Vec2;
+  /** Drehung in Grad wie bei `Unit.rotation`. */
+  readonly rotation: number;
+  /** Ausdehnung in Metern bei Flächen wie Feuer oder Rauch. Fehlt bei reinen Symbolen. */
+  readonly radius?: number;
+  readonly visibility: Visibility;
+}
+
 /**
  * Der komplette Spielstand zu einem Zeitpunkt.
  * Er wird nie direkt verändert, sondern nur durch Anwenden von Ereignissen neu berechnet.
  */
 export interface GameState {
   readonly units: Readonly<Record<UnitId, Unit>>;
+  readonly situationObjects: Readonly<Record<SituationObjectId, SituationObject>>;
 }
 
 export const initialState: GameState = {
   units: {},
+  situationObjects: {},
 };

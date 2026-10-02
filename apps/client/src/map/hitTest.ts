@@ -1,17 +1,12 @@
-import type { Unit, Vec2 } from '@tds/engine';
+import type { Vec2 } from '@tds/engine';
 import { worldToScreen, type Camera, type Viewport } from './camera';
+import { isArea, type MapItem } from './mapItems';
 
-/**
- * Größe eines taktischen Zeichens in Bildschirmpixeln.
- * Zeichen bleiben beim Zoomen gleich groß – sonst wären sie auf Verbandsebene unsichtbar klein.
- */
-export const SYMBOL_SIZE = { width: 44, height: 26 };
+/** Abstand des Drehgriffs über der Oberkante eines Zeichens in Pixeln. */
+const ROTATION_HANDLE_GAP = 26;
 
-/** Abstand des Drehgriffs von der Zeichenmitte in Pixeln, bei Drehung 0 genau darüber. */
-export const ROTATION_HANDLE_OFFSET = SYMBOL_SIZE.height / 2 + 26;
-
-/** Radius des Drehgriffs in Pixeln. */
-export const ROTATION_HANDLE_RADIUS = 6;
+/** Radius der Griffe zum Drehen und zum Ändern der Größe in Pixeln. */
+export const HANDLE_RADIUS = 6;
 
 /** Schrittweite in Grad beim Drehen per Taste und beim Einrasten mit Umschalt. */
 export const ROTATION_STEP = 15;
@@ -19,46 +14,63 @@ export const ROTATION_STEP = 15;
 /** Zusätzlicher Rand in Pixeln, damit man Zeichen nicht pixelgenau treffen muss. */
 const HIT_MARGIN = 4;
 
+/** So viele Pixel innen und außen am Kreisrand einer Fläche zählen als Treffer. */
+const AREA_EDGE_TOLERANCE = 6;
+
 /**
- * Findet die Einheit, deren Zeichen unter `screenPoint` liegt.
- * Bei Überlappung gewinnt die zuletzt gezeichnete (also die oben liegende).
+ * Findet das Objekt, das unter `screenPoint` liegt.
+ * Bei Überlappung gewinnt das zuletzt gezeichnete (also das oben liegende).
+ * Flächen werden nur an ihrem Zeichen und am Kreisrand getroffen, nicht im Inneren:
+ * Sonst ließe sich die Karte nicht mehr verschieben, wenn eine große Fläche den Bildschirm füllt.
  */
-export function hitTestUnits(
-  units: readonly Unit[],
+export function hitTestItems(
+  items: readonly MapItem[],
   camera: Camera,
   viewport: Viewport,
   screenPoint: Vec2,
-): Unit | undefined {
-  const halfWidth = SYMBOL_SIZE.width / 2 + HIT_MARGIN;
-  const halfHeight = SYMBOL_SIZE.height / 2 + HIT_MARGIN;
-
-  for (let i = units.length - 1; i >= 0; i--) {
-    const unit = units[i]!;
-    const center = worldToScreen(camera, viewport, unit.position);
+): MapItem | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!;
+    const center = worldToScreen(camera, viewport, item.position);
+    const offset = { x: screenPoint.x - center.x, y: screenPoint.y - center.y };
+    if (
+      isArea(item) &&
+      Math.abs(Math.hypot(offset.x, offset.y) - item.radius * camera.scale) <= AREA_EDGE_TOLERANCE
+    ) {
+      return item;
+    }
     // Punkt in das Koordinatensystem des Zeichens zurückdrehen, dann reicht ein einfacher Rechteck-Test.
-    const local = rotate(
-      { x: screenPoint.x - center.x, y: screenPoint.y - center.y },
-      -unit.rotation,
-    );
-    if (Math.abs(local.x) <= halfWidth && Math.abs(local.y) <= halfHeight) {
-      return unit;
+    const local = rotate(offset, -item.rotation);
+    if (
+      Math.abs(local.x) <= item.size.width / 2 + HIT_MARGIN &&
+      Math.abs(local.y) <= item.size.height / 2 + HIT_MARGIN
+    ) {
+      return item;
     }
   }
   return undefined;
 }
 
-/** Bildschirmposition des Drehgriffs für ein Zeichen mit Mitte `center` und Drehung `rotation`. */
-export function rotationHandlePosition(center: Vec2, rotation: number): Vec2 {
-  const offset = rotate({ x: 0, y: -ROTATION_HANDLE_OFFSET }, rotation);
+/** Abstand des Drehgriffs von der Zeichenmitte – bei Drehung 0 genau darüber. */
+export function rotationHandleOffset(symbolHeight: number): number {
+  return symbolHeight / 2 + ROTATION_HANDLE_GAP;
+}
+
+/** Bildschirmposition des Drehgriffs für ein Zeichen mit Mitte `center`. */
+export function rotationHandlePosition(center: Vec2, item: MapItem): Vec2 {
+  const offset = rotate({ x: 0, y: -rotationHandleOffset(item.size.height) }, item.rotation);
   return { x: center.x + offset.x, y: center.y + offset.y };
 }
 
-/** Liegt `screenPoint` auf dem Drehgriff? */
-export function hitTestRotationHandle(center: Vec2, rotation: number, screenPoint: Vec2): boolean {
-  const handle = rotationHandlePosition(center, rotation);
+/** Bildschirmposition des Größen-Griffs einer Fläche: rechts auf dem Kreisrand. */
+export function resizeHandlePosition(center: Vec2, radiusPx: number): Vec2 {
+  return { x: center.x + radiusPx, y: center.y };
+}
+
+/** Liegt `screenPoint` auf einem Griff an der Position `handle`? */
+export function hitTestHandle(handle: Vec2, screenPoint: Vec2): boolean {
   return (
-    Math.hypot(screenPoint.x - handle.x, screenPoint.y - handle.y) <=
-    ROTATION_HANDLE_RADIUS + HIT_MARGIN
+    Math.hypot(screenPoint.x - handle.x, screenPoint.y - handle.y) <= HANDLE_RADIUS + HIT_MARGIN
   );
 }
 

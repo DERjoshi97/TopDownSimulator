@@ -1,5 +1,5 @@
 import type { Vec2 } from './geometry';
-import type { UnitId } from './state';
+import type { SituationObjectId, UnitId, Visibility } from './state';
 
 // Befehle beschreiben, was jemand tun *möchte*. Die Engine prüft sie in `decide`
 // und macht daraus Ereignisse – oder lehnt sie ab.
@@ -31,4 +31,56 @@ export interface RemoveUnit {
   readonly unitId: UnitId;
 }
 
-export type Command = PlaceUnit | MoveUnit | RotateUnit | RemoveUnit;
+export interface PlaceSituationObject {
+  readonly type: 'PlaceSituationObject';
+  readonly objectId: SituationObjectId;
+  readonly objectType: string;
+  readonly position: Vec2;
+  /** Optional, Standard ist 0. */
+  readonly rotation?: number;
+  /** Nur bei Flächen, in Metern. */
+  readonly radius?: number;
+  /** Optional, Standard ist `everyone`. */
+  readonly visibility?: Visibility;
+}
+
+export interface MoveSituationObject {
+  readonly type: 'MoveSituationObject';
+  readonly objectId: SituationObjectId;
+  readonly position: Vec2;
+}
+
+export interface RotateSituationObject {
+  readonly type: 'RotateSituationObject';
+  readonly objectId: SituationObjectId;
+  readonly rotation: number;
+}
+
+export interface ResizeSituationObject {
+  readonly type: 'ResizeSituationObject';
+  readonly objectId: SituationObjectId;
+  readonly radius: number;
+}
+
+export interface ChangeSituationObjectVisibility {
+  readonly type: 'ChangeSituationObjectVisibility';
+  readonly objectId: SituationObjectId;
+  readonly visibility: Visibility;
+}
+
+export interface RemoveSituationObject {
+  readonly type: 'RemoveSituationObject';
+  readonly objectId: SituationObjectId;
+}
+
+export type Command =
+  | PlaceUnit
+  | MoveUnit
+  | RotateUnit
+  | RemoveUnit
+  | PlaceSituationObject
+  | MoveSituationObject
+  | RotateSituationObject
+  | ResizeSituationObject
+  | ChangeSituationObjectVisibility
+  | RemoveSituationObject;

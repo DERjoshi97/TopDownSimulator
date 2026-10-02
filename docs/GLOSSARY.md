@@ -20,29 +20,37 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 
 ## Feuerwehr (Fachlich)
 
-| Deutsch            | Englisch im Code    |
-| ------------------ | ------------------- |
-| Einheit            | `Unit`              |
-| Einheitentyp       | `UnitType`          |
-| Fahrzeug           | `Vehicle`           |
-| Trupp              | `Team`              |
-| Staffel            | `Squad`             |
-| Gruppe             | `Section`           |
-| Zug                | `Platoon`           |
-| Verband            | `Formation`         |
-| Führungsebene      | `CommandLevel`      |
-| Stärke             | `Strength`          |
-| Fahrzeugstatus/FMS | `radioStatus`       |
-| Befehl (Feuerwehr) | `Order`             |
-| Funkspruch         | `RadioMessage`      |
-| Lage               | `Situation`         |
-| Lageobjekt         | `SituationObject`   |
-| Taktisches Zeichen | `TacticalSymbol`    |
-| Einsatzabschnitt   | `Sector`            |
-| Erkundung          | `Reconnaissance`    |
-| Absperrung         | `Cordon`            |
-| Gefahrstoff        | `HazardousMaterial` |
-| Hydrant            | `Hydrant`           |
+| Deutsch            | Englisch im Code      |
+| ------------------ | --------------------- |
+| Einheit            | `Unit`                |
+| Einheitentyp       | `UnitType`            |
+| Fahrzeug           | `Vehicle`             |
+| Trupp              | `Team`                |
+| Staffel            | `Squad`               |
+| Gruppe             | `Section`             |
+| Zug                | `Platoon`             |
+| Verband            | `Formation`           |
+| Führungsebene      | `CommandLevel`        |
+| Stärke             | `Strength`            |
+| Fahrzeugstatus/FMS | `radioStatus`         |
+| Befehl (Feuerwehr) | `Order`               |
+| Funkspruch         | `RadioMessage`        |
+| Lage               | `Situation`           |
+| Lageobjekt         | `SituationObject`     |
+| Lageobjekttyp      | `SituationObjectType` |
+| Feuer              | `fire`                |
+| Rauch              | `smoke`               |
+| Person             | `person`              |
+| Sichtbarkeit       | `Visibility`          |
+| nur Übungsleitung  | `director`            |
+| erkundet           | `reconnoitered`       |
+| für alle           | `everyone`            |
+| Taktisches Zeichen | `TacticalSymbol`      |
+| Einsatzabschnitt   | `Sector`              |
+| Erkundung          | `Reconnaissance`      |
+| Absperrung         | `Cordon`              |
+| Gefahrstoff        | `HazardousMaterial`   |
+| Hydrant            | `Hydrant`             |
 
 ## Übung
 
@@ -62,12 +70,14 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 
 ## Katalog
 
-| Deutsch                       | Englisch im Code     |
-| ----------------------------- | -------------------- |
-| Katalog / Stammdaten          | `Catalog`            |
-| Einheitentyp (Katalogeintrag) | `UnitTypeDefinition` |
-| Grundzeichen                  | `SymbolShape`        |
-| Organisation                  | `Organization`       |
-| Feuerwehr (Organisation)      | `fire`               |
-| Rettungsdienst (Organisation) | `ems`                |
-| Werkzeug (Oberfläche)         | `Tool`               |
+| Deutsch                        | Englisch im Code                |
+| ------------------------------ | ------------------------------- |
+| Katalog / Stammdaten           | `Catalog`                       |
+| Einheitentyp (Katalogeintrag)  | `UnitTypeDefinition`            |
+| Lageobjekttyp (Katalogeintrag) | `SituationObjectTypeDefinition` |
+| Ausdehnung: Fläche / Symbol    | `extent`: `area` / `symbol`     |
+| Grundzeichen                   | `SymbolShape`                   |
+| Organisation                   | `Organization`                  |
+| Feuerwehr (Organisation)       | `fire`                          |
+| Rettungsdienst (Organisation)  | `ems`                           |
+| Werkzeug (Oberfläche)          | `Tool`                          |

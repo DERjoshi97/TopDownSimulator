@@ -1,5 +1,5 @@
 import { Application, Container, Graphics } from 'pixi.js';
-import type { Unit, UnitId, Vec2 } from '@tds/engine';
+import type { Vec2 } from '@tds/engine';
 import {
   defaultCamera,
   gridStep,
@@ -10,8 +10,16 @@ import {
   type Camera,
   type Viewport,
 } from './camera';
-import { ROTATION_STEP, hitTestRotationHandle, hitTestUnits, rotationTowards } from './hitTest';
-import { createSelectionMarker, createUnitSymbol } from './symbols';
+import {
+  ROTATION_STEP,
+  hitTestHandle,
+  hitTestItems,
+  resizeHandlePosition,
+  rotationHandlePosition,
+  rotationTowards,
+} from './hitTest';
+import { isArea, refKey, sameRef, type MapItem, type MapItemRef } from './mapItems';
+import { createItemSymbol, drawArea, drawSelection } from './symbols';
 
 export interface MapViewOptions {
   /** Wird aufgerufen, wenn sich Ausschnitt oder Zoom ändern. */
@@ -20,12 +28,14 @@ export interface MapViewOptions {
   onCursorMove?: (world: Vec2 | undefined) => void;
   /** Klick auf eine freie Stelle der Karte (ohne Ziehen). */
   onMapClick?: (world: Vec2, modifiers: { shiftKey: boolean }) => void;
-  /** Eine Einheit wurde angeklickt (auch zu Beginn des Ziehens). */
-  onUnitSelect?: (unitId: UnitId) => void;
-  /** Eine Einheit wurde mit der Maus an eine neue Position gezogen. */
-  onUnitDragEnd?: (unitId: UnitId, position: Vec2) => void;
-  /** Eine Einheit wurde am Drehgriff gedreht. */
-  onUnitRotateEnd?: (unitId: UnitId, rotation: number) => void;
+  /** Ein Objekt wurde angeklickt (auch zu Beginn des Ziehens). */
+  onItemSelect?: (ref: MapItemRef) => void;
+  /** Ein Objekt wurde mit der Maus an eine neue Position gezogen. */
+  onItemMoveEnd?: (ref: MapItemRef, position: Vec2) => void;
+  /** Ein Objekt wurde am Drehgriff gedreht. */
+  onItemRotateEnd?: (ref: MapItemRef, rotation: number) => void;
+  /** Eine Fläche wurde am Größen-Griff auf einen neuen Radius in Metern gezogen. */
+  onItemResizeEnd?: (ref: MapItemRef, radius: number) => void;
 }
 
 const COLORS = {
@@ -41,43 +51,53 @@ const WHEEL_ZOOM_SPEED = 0.0015;
 /** Bis zu dieser Mausbewegung in Pixeln zählt Drücken + Loslassen als Klick, nicht als Ziehen. */
 const CLICK_TOLERANCE_PX = 4;
 
-/** Was gerade mit gedrückter Maustaste passiert: Karte verschieben, Einheit ziehen oder drehen. */
-type Drag =
-  | { kind: 'pan'; pointerId: number; start: Vec2; last: Vec2; moved: boolean }
+/** Deckkraft von Objekten, die nur die Übungsleitung sieht. */
+const DIMMED_ALPHA = 0.45;
+
+/** Kleinster Radius einer Fläche in Metern beim Ziehen am Größen-Griff. */
+const MIN_RADIUS = 0.5;
+
+/**
+ * Was gerade mit gedrückter Maustaste passiert: Karte verschieben, Objekt ziehen, drehen
+ * oder in der Größe ändern. Während des Ziehens hält `Drag` den Zwischenstand; erst beim
+ * Loslassen wird daraus ein Befehl.
+ */
+type Drag = { pointerId: number; start: Vec2; moved: boolean } & (
+  | { kind: 'pan'; last: Vec2 }
   | {
-      kind: 'unit';
-      pointerId: number;
-      start: Vec2;
-      unitId: UnitId;
-      /** Abstand zwischen Einheitenmitte und Griffpunkt, damit das Zeichen nicht zur Maus springt. */
+      kind: 'move';
+      ref: MapItemRef;
+      /** Abstand zwischen Objektmitte und Griffpunkt, damit das Zeichen nicht zur Maus springt. */
       grabOffset: Vec2;
       position: Vec2;
-      moved: boolean;
     }
-  | {
-      kind: 'rotate';
-      pointerId: number;
-      start: Vec2;
-      unitId: UnitId;
-      rotation: number;
-      moved: boolean;
-    };
+  | { kind: 'rotate'; ref: MapItemRef; rotation: number }
+  | { kind: 'resize'; ref: MapItemRef; radius: number }
+);
+
+/** Was für ein Objekt gezeichnet wird: das Zeichen und bei Flächen der Kreis darunter. */
+interface ItemDisplay {
+  readonly symbol: Container;
+  readonly area?: Graphics;
+}
 
 /**
  * Die Kartenansicht: zeichnet mit PixiJS (WebGL) und verarbeitet Maus und Mausrad.
- * Kennt weder React noch die Engine-Befehle – sie zeigt Einheiten an und meldet Benutzeraktionen
- * über die Callbacks in `MapViewOptions`. Was daraus wird, entscheidet `MapCanvas`.
+ * Kennt weder React noch die Engine-Befehle – sie zeigt Einheiten und Lageobjekte an und meldet
+ * Benutzeraktionen über die Callbacks in `MapViewOptions`. Was daraus wird, entscheidet `MapCanvas`.
  */
 export class MapView {
   readonly #app: Application;
   readonly #options: MapViewOptions;
   readonly #grid = new Graphics();
-  readonly #unitLayer = new Container();
-  /** Ein Zeichen je Einheit, damit bei Änderungen nicht alles neu erzeugt werden muss. */
-  readonly #symbols = new Map<UnitId, Container>();
-  readonly #selectionMarker = createSelectionMarker();
-  #units: readonly Unit[] = [];
-  #selectedUnitId: UnitId | undefined;
+  /** Flächen liegen unter allen Zeichen, damit ein Feuer kein Fahrzeug verdeckt. */
+  readonly #areaLayer = new Container();
+  readonly #symbolLayer = new Container();
+  readonly #selection = new Graphics();
+  /** Anzeige je Objekt, damit bei Änderungen nicht alles neu erzeugt werden muss. */
+  readonly #displays = new Map<string, ItemDisplay>();
+  #items: readonly MapItem[] = [];
+  #selected: MapItemRef | undefined;
   #camera: Camera = defaultCamera;
   /** Muss neu gezeichnet werden? Verhindert Zeichnen in jedem Bild, wenn sich nichts ändert. */
   #dirty = true;
@@ -103,7 +123,7 @@ export class MapView {
   private constructor(app: Application, options: MapViewOptions) {
     this.#app = app;
     this.#options = options;
-    app.stage.addChild(this.#grid, this.#unitLayer, this.#selectionMarker);
+    app.stage.addChild(this.#grid, this.#areaLayer, this.#symbolLayer, this.#selection);
     app.ticker.add(this.#render);
     this.#removeListeners = this.#attachInput(app.canvas);
     options.onCameraChange?.(this.#camera);
@@ -119,29 +139,40 @@ export class MapView {
     this.#options.onCameraChange?.(camera);
   }
 
-  /** Übernimmt die Einheiten aus dem Spielstand: legt neue Zeichen an und entfernt alte. */
-  setUnits(units: Readonly<Record<UnitId, Unit>>): void {
-    this.#units = Object.values(units);
+  /** Übernimmt die Objekte aus dem Spielstand: legt neue Zeichen an und entfernt alte. */
+  setItems(items: readonly MapItem[]): void {
+    this.#items = items;
+    const keys = new Set(items.map((item) => refKey(item.ref)));
 
-    for (const [id, symbol] of this.#symbols) {
-      if (!units[id]) {
-        symbol.destroy({ children: true });
-        this.#symbols.delete(id);
+    for (const [key, display] of this.#displays) {
+      if (!keys.has(key)) {
+        display.symbol.destroy({ children: true });
+        display.area?.destroy();
+        this.#displays.delete(key);
       }
     }
-    for (const unit of this.#units) {
-      if (!this.#symbols.has(unit.id)) {
-        const symbol = createUnitSymbol(unit.unitType);
-        this.#symbols.set(unit.id, symbol);
-        this.#unitLayer.addChild(symbol);
-      }
+    for (const item of items) {
+      const key = refKey(item.ref);
+      if (this.#displays.has(key)) continue;
+      const display: ItemDisplay = {
+        symbol: createItemSymbol(item),
+        ...(isArea(item) && { area: new Graphics() }),
+      };
+      this.#displays.set(key, display);
+      this.#symbolLayer.addChild(display.symbol);
+      if (display.area) this.#areaLayer.addChild(display.area);
     }
+    // Zeichenreihenfolge an die Liste anpassen: Was später kommt, liegt oben.
+    items.forEach((item, index) => {
+      const symbol = this.#displays.get(refKey(item.ref))?.symbol;
+      if (symbol) this.#symbolLayer.setChildIndex(symbol, index);
+    });
     this.#dirty = true;
   }
 
-  /** Markiert eine Einheit als ausgewählt. `undefined` hebt die Auswahl auf. */
-  setSelection(unitId: UnitId | undefined): void {
-    this.#selectedUnitId = unitId;
+  /** Markiert ein Objekt als ausgewählt. `undefined` hebt die Auswahl auf. */
+  setSelection(ref: MapItemRef | undefined): void {
+    this.#selected = ref;
     this.#dirty = true;
   }
 
@@ -154,8 +185,13 @@ export class MapView {
     return { width: this.#app.screen.width, height: this.#app.screen.height };
   }
 
-  #screenPosition(unit: Unit): Vec2 {
-    return worldToScreen(this.#camera, this.#viewport, unit.position);
+  #screenPosition(item: MapItem): Vec2 {
+    return worldToScreen(this.#camera, this.#viewport, item.position);
+  }
+
+  #selectedItem(): MapItem | undefined {
+    const selected = this.#selected;
+    return selected && this.#items.find((item) => sameRef(item.ref, selected));
   }
 
   /** Läuft in jedem Bild (ca. 60× pro Sekunde), zeichnet aber nur bei Änderungen. */
@@ -167,40 +203,52 @@ export class MapView {
     this.#lastViewport = viewport;
     this.#dirty = false;
     this.#drawGrid(viewport);
-    this.#positionUnits(viewport);
+    this.#positionItems(viewport);
   };
 
-  /** Setzt jedes Zeichen und die Auswahlmarkierung an die Bildschirmposition ihrer Einheit. */
-  #positionUnits(viewport: Viewport): void {
-    this.#selectionMarker.visible = false;
-    for (const unit of this.#units) {
-      const symbol = this.#symbols.get(unit.id);
-      if (!symbol) continue;
-      const { position, rotation } = this.#displayedPose(unit);
-      const screen = worldToScreen(this.#camera, viewport, position);
-      symbol.position.set(screen.x, screen.y);
-      symbol.angle = rotation;
-      if (unit.id === this.#selectedUnitId) {
-        this.#selectionMarker.visible = true;
-        this.#selectionMarker.position.set(screen.x, screen.y);
-        this.#selectionMarker.angle = rotation;
+  /** Setzt Zeichen, Flächen und Auswahlmarkierung an die Bildschirmposition ihres Objekts. */
+  #positionItems(viewport: Viewport): void {
+    this.#selection.visible = false;
+    for (const original of this.#items) {
+      const display = this.#displays.get(refKey(original.ref));
+      if (!display) continue;
+      const item = this.#displayedItem(original);
+      const screen = worldToScreen(this.#camera, viewport, item.position);
+      const radiusPx = (item.radius ?? 0) * this.#camera.scale;
+      const alpha = item.dimmed ? DIMMED_ALPHA : 1;
+
+      display.symbol.position.set(screen.x, screen.y);
+      display.symbol.angle = item.rotation;
+      display.symbol.alpha = alpha;
+      if (display.area) {
+        drawArea(display.area, item.symbolType, radiusPx);
+        display.area.position.set(screen.x, screen.y);
+        display.area.alpha = alpha;
+      }
+      if (this.#selected && sameRef(item.ref, this.#selected)) {
+        drawSelection(this.#selection, item, radiusPx);
+        this.#selection.position.set(screen.x, screen.y);
+        this.#selection.angle = item.rotation;
+        this.#selection.visible = true;
       }
     }
   }
 
   /**
-   * Wo und wie gedreht eine Einheit gezeigt wird. Während des Ziehens oder Drehens folgt das
-   * Zeichen der Maus, die Einheit selbst ändert sich erst beim Loslassen per Befehl.
+   * Wie ein Objekt gerade gezeigt wird. Während Ziehen, Drehen oder Größe ändern folgt das
+   * Zeichen der Maus; das Objekt selbst ändert sich erst beim Loslassen per Befehl.
    */
-  #displayedPose(unit: Unit): { position: Vec2; rotation: number } {
+  #displayedItem(item: MapItem): MapItem {
     const drag = this.#drag;
-    if (drag?.kind === 'unit' && drag.unitId === unit.id) {
-      return { position: drag.position, rotation: unit.rotation };
+    if (!drag || drag.kind === 'pan' || !sameRef(drag.ref, item.ref)) return item;
+    switch (drag.kind) {
+      case 'move':
+        return { ...item, position: drag.position };
+      case 'rotate':
+        return { ...item, rotation: drag.rotation };
+      case 'resize':
+        return { ...item, radius: drag.radius };
     }
-    if (drag?.kind === 'rotate' && drag.unitId === unit.id) {
-      return { position: unit.position, rotation: drag.rotation };
-    }
-    return unit;
   }
 
   /**
@@ -242,6 +290,24 @@ export class MapView {
       .stroke({ color: COLORS.origin, width: 2 });
   }
 
+  /**
+   * Welcher Griff des ausgewählten Objekts liegt unter `point`? Griffe liegen außerhalb des
+   * Zeichens und werden daher vor den Objekten selbst geprüft.
+   */
+  #hitTestHandles(point: Vec2): 'rotate' | 'resize' | undefined {
+    const selected = this.#selectedItem();
+    if (!selected) return undefined;
+    const center = this.#screenPosition(selected);
+    if (isArea(selected)) {
+      const handle = resizeHandlePosition(center, selected.radius * this.#camera.scale);
+      return hitTestHandle(handle, point) ? 'resize' : undefined;
+    }
+    if (selected.rotatable && hitTestHandle(rotationHandlePosition(center, selected), point)) {
+      return 'rotate';
+    }
+    return undefined;
+  }
+
   /** Verbindet Maus und Mausrad mit der Kamera. Gibt eine Funktion zurück, die alles wieder löst. */
   #attachInput(canvas: HTMLCanvasElement): () => void {
     const localPoint = (e: MouseEvent): Vec2 => {
@@ -254,52 +320,37 @@ export class MapView {
       // Linke (0) oder mittlere (1) Maustaste
       if (e.button !== 0 && e.button !== 1) return;
       canvas.setPointerCapture(e.pointerId);
+      canvas.style.cursor = 'grabbing';
       const point = localPoint(e);
+      const base = { pointerId: e.pointerId, start: point, moved: false };
 
-      // Linke Maustaste: zuerst der Drehgriff der ausgewählten Einheit (er liegt außerhalb des
-      // Zeichens), dann die Einheiten selbst. Alles andere verschiebt die Karte.
-      const selected = this.#units.find((u) => u.id === this.#selectedUnitId);
-      if (
-        e.button === 0 &&
-        selected &&
-        hitTestRotationHandle(this.#screenPosition(selected), selected.rotation, point)
-      ) {
-        this.#drag = {
-          kind: 'rotate',
-          pointerId: e.pointerId,
-          start: point,
-          unitId: selected.id,
-          rotation: selected.rotation,
-          moved: false,
-        };
-        canvas.style.cursor = 'grabbing';
+      // Linke Maustaste: zuerst die Griffe der Auswahl, dann die Objekte.
+      // Alles andere (und die mittlere Taste) verschiebt die Karte.
+      const handle = e.button === 0 ? this.#hitTestHandles(point) : undefined;
+      const selected = this.#selectedItem();
+      if (handle && selected) {
+        this.#drag =
+          handle === 'rotate'
+            ? { ...base, kind: 'rotate', ref: selected.ref, rotation: selected.rotation }
+            : { ...base, kind: 'resize', ref: selected.ref, radius: selected.radius ?? 0 };
         return;
       }
 
-      const unit =
-        e.button === 0 ? hitTestUnits(this.#units, this.#camera, this.#viewport, point) : undefined;
-      if (unit) {
-        this.#options.onUnitSelect?.(unit.id);
+      const item =
+        e.button === 0 ? hitTestItems(this.#items, this.#camera, this.#viewport, point) : undefined;
+      if (item) {
+        this.#options.onItemSelect?.(item.ref);
         const world = toWorld(point);
         this.#drag = {
-          kind: 'unit',
-          pointerId: e.pointerId,
-          start: point,
-          unitId: unit.id,
-          grabOffset: { x: unit.position.x - world.x, y: unit.position.y - world.y },
-          position: unit.position,
-          moved: false,
+          ...base,
+          kind: 'move',
+          ref: item.ref,
+          grabOffset: { x: item.position.x - world.x, y: item.position.y - world.y },
+          position: item.position,
         };
       } else {
-        this.#drag = {
-          kind: 'pan',
-          pointerId: e.pointerId,
-          start: point,
-          last: point,
-          moved: false,
-        };
+        this.#drag = { ...base, kind: 'pan', last: point };
       }
-      canvas.style.cursor = 'grabbing';
     };
 
     const onPointerMove = (e: PointerEvent) => {
@@ -310,19 +361,8 @@ export class MapView {
         if (drag.kind === 'pan') {
           this.setCamera(panBy(this.#camera, point.x - drag.last.x, point.y - drag.last.y));
           drag.last = point;
-        } else if (drag.kind === 'rotate') {
-          const unit = this.#units.find((u) => u.id === drag.unitId);
-          if (unit && drag.moved) {
-            const rotation = rotationTowards(this.#screenPosition(unit), point);
-            // Mit Umschalt rastet die Drehung in festen Schritten ein, z. B. für exakt 90°.
-            drag.rotation = e.shiftKey
-              ? (Math.round(rotation / ROTATION_STEP) * ROTATION_STEP) % 360
-              : rotation;
-            this.#dirty = true;
-          }
         } else if (drag.moved) {
-          const world = toWorld(point);
-          drag.position = { x: world.x + drag.grabOffset.x, y: world.y + drag.grabOffset.y };
+          this.#updateDrag(drag, point, e.shiftKey);
           this.#dirty = true;
         }
       }
@@ -336,12 +376,23 @@ export class MapView {
       this.#dirty = true;
       canvas.style.cursor = '';
 
-      if (drag.kind === 'unit' && drag.moved) {
-        this.#options.onUnitDragEnd?.(drag.unitId, drag.position);
-      } else if (drag.kind === 'rotate' && drag.moved) {
-        this.#options.onUnitRotateEnd?.(drag.unitId, drag.rotation);
-      } else if (drag.kind === 'pan' && !drag.moved && e.type === 'pointerup') {
-        this.#options.onMapClick?.(toWorld(localPoint(e)), { shiftKey: e.shiftKey });
+      if (drag.kind === 'pan') {
+        if (!drag.moved && e.type === 'pointerup') {
+          this.#options.onMapClick?.(toWorld(localPoint(e)), { shiftKey: e.shiftKey });
+        }
+        return;
+      }
+      if (!drag.moved) return;
+      switch (drag.kind) {
+        case 'move':
+          this.#options.onItemMoveEnd?.(drag.ref, drag.position);
+          break;
+        case 'rotate':
+          this.#options.onItemRotateEnd?.(drag.ref, drag.rotation);
+          break;
+        case 'resize':
+          this.#options.onItemResizeEnd?.(drag.ref, drag.radius);
+          break;
       }
     };
 
@@ -372,6 +423,33 @@ export class MapView {
       canvas.removeEventListener('pointerleave', onPointerLeave);
       canvas.removeEventListener('wheel', onWheel);
     };
+  }
+
+  /** Aktualisiert den Zwischenstand beim Ziehen, Drehen oder Größe ändern. */
+  #updateDrag(drag: Exclude<Drag, { kind: 'pan' }>, point: Vec2, shiftKey: boolean): void {
+    if (drag.kind === 'move') {
+      const world = screenToWorld(this.#camera, this.#viewport, point);
+      drag.position = { x: world.x + drag.grabOffset.x, y: world.y + drag.grabOffset.y };
+      return;
+    }
+    const item = this.#items.find((i) => sameRef(i.ref, drag.ref));
+    if (!item) return;
+    const center = this.#screenPosition(item);
+
+    if (drag.kind === 'rotate') {
+      const rotation = rotationTowards(center, point);
+      // Mit Umschalt rastet die Drehung in festen Schritten ein, z. B. für exakt 90°.
+      drag.rotation = shiftKey
+        ? (Math.round(rotation / ROTATION_STEP) * ROTATION_STEP) % 360
+        : rotation;
+    } else {
+      const meters = distance(center, point) / this.#camera.scale;
+      // Auf 0,1 m runden, damit im Einsatztagebuch keine krummen Werte stehen;
+      // mit Umschalt auf ganze Meter.
+      // (Teilen statt mit 0,1 malnehmen, sonst entstehen Werte wie 3.3000000000000003.)
+      const perMeter = shiftKey ? 1 : 10;
+      drag.radius = Math.max(MIN_RADIUS, Math.round(meters * perMeter) / perMeter);
+    }
   }
 }
 
