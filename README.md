@@ -8,6 +8,8 @@ Status: Phase 1 (lokales Planspiel). Planung und Architektur: [docs/PLAN.md](doc
 
 - [Node.js](https://nodejs.org) (LTS, ab Version 24)
 
+Die Version steht in `.nvmrc` und wird von Version-Managern wie nvm oder fnm automatisch erkannt. Mit einer älteren Node-Version bricht `npm install` ab, statt Abhängigkeiten unbemerkt wegzulassen.
+
 ## Loslegen
 
 ```sh
