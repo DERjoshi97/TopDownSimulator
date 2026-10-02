@@ -27,26 +27,36 @@ export function MapCanvas() {
       onCameraChange: setCamera,
       onCursorMove: setCursor,
       onMapClick: (world, { shiftKey }) => {
-        const { activeUnitType, selectUnitType } = useToolStore.getState();
-        if (!activeUnitType) return;
-        useGameStore.getState().execute({
+        const { activeUnitType, selectUnit } = useToolStore.getState();
+        // Klick ins Leere ohne Werkzeug hebt die Auswahl auf.
+        if (!activeUnitType) {
+          selectUnit(undefined);
+          return;
+        }
+        const unitId = crypto.randomUUID();
+        const result = useGameStore.getState().execute({
           type: 'PlaceUnit',
-          unitId: crypto.randomUUID(),
+          unitId,
           unitType: activeUnitType,
           position: world,
         });
         // Mit gedrückter Umschalttaste bleibt das Werkzeug aktiv, um mehrere Einheiten zu setzen.
-        if (!shiftKey) selectUnitType(undefined);
+        // Sonst wird die neue Einheit gleich ausgewählt, damit man sie direkt drehen kann.
+        if (!shiftKey && result.ok) selectUnit(unitId);
       },
+      onUnitSelect: (unitId) => useToolStore.getState().selectUnit(unitId),
       onUnitDragEnd: (unitId, position) => {
         useGameStore.getState().execute({ type: 'MoveUnit', unitId, position });
+      },
+      onUnitRotateEnd: (unitId, rotation) => {
+        useGameStore.getState().execute({ type: 'RotateUnit', unitId, rotation });
       },
     });
 
     // PixiJS startet asynchron. Wird die Komponente vorher wieder entfernt (passiert im
     // React-Entwicklungsmodus absichtlich einmal), zerstören wir die Ansicht direkt nach dem Start.
     let disposed = false;
-    let unsubscribe: (() => void) | undefined;
+    const unsubscribers: (() => void)[] = [];
     void view.then((v) => {
       if (disposed) {
         v.destroy();
@@ -54,12 +64,16 @@ export function MapCanvas() {
       }
       viewRef.current = v;
       v.setUnits(useGameStore.getState().state.units);
-      unsubscribe = useGameStore.subscribe((s) => v.setUnits(s.state.units));
+      v.setSelection(useToolStore.getState().selectedUnitId);
+      unsubscribers.push(
+        useGameStore.subscribe((s) => v.setUnits(s.state.units)),
+        useToolStore.subscribe((s) => v.setSelection(s.selectedUnitId)),
+      );
     });
 
     return () => {
       disposed = true;
-      unsubscribe?.();
+      unsubscribers.forEach((unsubscribe) => unsubscribe());
       viewRef.current?.destroy();
       viewRef.current = undefined;
     };

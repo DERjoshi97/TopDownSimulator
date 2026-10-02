@@ -1,6 +1,6 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { findUnitType, type Organization } from '@tds/catalog';
-import { SYMBOL_SIZE } from './hitTest';
+import { ROTATION_HANDLE_OFFSET, ROTATION_HANDLE_RADIUS, SYMBOL_SIZE } from './hitTest';
 
 // Taktische Zeichen, vereinfacht nach DV 102. Werden im Code gezeichnet (keine Bilddateien):
 // keine Lizenzfragen, scharf bei jeder Bildschirmauflösung, neue Typen nur per Katalogeintrag.
@@ -18,6 +18,12 @@ const COLORS: Record<Organization, SymbolColors> = {
 
 /** Für Einheitentypen, die (noch) nicht im Katalog stehen. */
 const UNKNOWN_COLORS: SymbolColors = { fill: 0xb0b0b0, stroke: 0x1a1a1a, text: 0x1a1a1a };
+
+/** Blau statt Rot, damit sich die Auswahl deutlich von den Feuerwehr-Zeichen abhebt. */
+const SELECTION_COLOR = 0x1f6feb;
+
+/** Abstand des Auswahlrahmens zum Zeichen in Pixeln. */
+const SELECTION_PADDING = 6;
 
 /**
  * Erzeugt das Zeichen für einen Einheitentyp. Mittelpunkt des Rechtecks ist (0|0),
@@ -62,4 +68,24 @@ export function createUnitSymbol(unitType: string): Container {
   const symbol = new Container();
   symbol.addChild(shape, label);
   return symbol;
+}
+
+/**
+ * Markierung der ausgewählten Einheit: Rahmen um das Zeichen und darüber der Drehgriff.
+ * Wird wie ein Zeichen auf die Mitte der Einheit gesetzt und mitgedreht.
+ */
+export function createSelectionMarker(): Container {
+  const width = SYMBOL_SIZE.width + 2 * SELECTION_PADDING;
+  const height = SYMBOL_SIZE.height + 2 * SELECTION_PADDING;
+  const top = -height / 2;
+
+  return new Graphics()
+    .rect(-width / 2, top, width, height)
+    .stroke({ color: SELECTION_COLOR, width: 2 })
+    .moveTo(0, top)
+    .lineTo(0, -ROTATION_HANDLE_OFFSET + ROTATION_HANDLE_RADIUS)
+    .stroke({ color: SELECTION_COLOR, width: 2 })
+    .circle(0, -ROTATION_HANDLE_OFFSET, ROTATION_HANDLE_RADIUS)
+    .fill(0xffffff)
+    .stroke({ color: SELECTION_COLOR, width: 2 });
 }
