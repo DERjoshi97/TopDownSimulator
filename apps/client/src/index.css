@@ -23,7 +23,7 @@ body {
   top: 12px;
   left: 12px;
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 16px;
   padding: 8px 14px;
   background: var(--panel);
@@ -36,10 +36,70 @@ body {
   font-size: 1rem;
 }
 
+.exercise-clock {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .clock {
   font-family: ui-monospace, monospace;
   font-size: 1.25rem;
   color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Angehalten: grau und blinkend, damit man es auch vom Beamer aus erkennt. */
+.clock--paused {
+  color: #888;
+  animation: clock-blink 1.2s steps(1) infinite;
+}
+
+@keyframes clock-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.app-header button {
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: #fff;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.app-header button:hover {
+  border-color: #1a1a1a;
+}
+
+.app-header button[aria-pressed='true'] {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+}
+
+.clock-toggle {
+  min-width: 80px;
+}
+
+.clock-speeds {
+  display: flex;
+}
+
+.clock-speeds button {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.clock-speeds button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.clock-speeds button:last-child {
+  border-radius: 0 4px 4px 0;
 }
 
 .map,
@@ -227,10 +287,24 @@ body {
   background: repeating-linear-gradient(90deg, #c8102e 0 3px, #fff 3px 6px);
 }
 
-.selection-panel {
+.side-panels {
   position: absolute;
   top: 12px;
   right: 12px;
+  bottom: 56px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 300px;
+  /* Leere Fläche der Spalte soll Mausklicks an die Karte durchlassen. */
+  pointer-events: none;
+}
+
+.side-panels > * {
+  pointer-events: auto;
+}
+
+.selection-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -306,4 +380,81 @@ body {
 .selection-panel .selection-panel-remove {
   align-self: flex-end;
   color: var(--accent);
+}
+
+.logbook {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: 45vh;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+}
+
+.logbook header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 6px 14px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.logbook h2 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.logbook header button {
+  padding: 0 6px;
+  font: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #666;
+}
+
+.logbook ol {
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.logbook li > button,
+.logbook li {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  font: inherit;
+  text-align: left;
+}
+
+.logbook li {
+  padding: 3px 14px;
+}
+
+.logbook li > button {
+  margin: -3px -14px;
+  padding: 3px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.logbook li > button:hover {
+  background: rgb(31 111 235 / 0.1);
+}
+
+.logbook time {
+  flex-shrink: 0;
+  font-family: ui-monospace, monospace;
+  color: #666;
+}
+
+.logbook-empty {
+  margin: 0;
+  padding: 10px 14px;
+  color: #666;
 }

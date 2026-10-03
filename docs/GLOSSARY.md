@@ -54,19 +54,23 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 
 ## Übung
 
-| Deutsch                   | Englisch im Code   |
-| ------------------------- | ------------------ |
-| Planspiel / Übung         | `Exercise`         |
-| Szenario                  | `Scenario`         |
-| Übungsleitung             | `Director`         |
-| Übende                    | `Trainee`          |
-| Beobachter                | `Observer`         |
-| Einspielung               | `Inject`           |
-| Einsatzuhr                | `ExerciseClock`    |
-| Einsatztagebuch           | `Logbook`          |
-| Nachbesprechung           | `Debriefing`       |
-| Karte                     | `Map`              |
-| Präsentationsmodus/Beamer | `PresentationView` |
+| Deutsch                   | Englisch im Code             |
+| ------------------------- | ---------------------------- |
+| Planspiel / Übung         | `Exercise`                   |
+| Szenario                  | `Scenario`                   |
+| Übungsleitung             | `Director`                   |
+| Übende                    | `Trainee`                    |
+| Beobachter                | `Observer`                   |
+| Einspielung               | `Inject`                     |
+| Einsatzuhr                | `ExerciseClock`              |
+| Einsatztagebuch           | `Logbook`                    |
+| Tagebucheintrag           | `LogbookEntry`               |
+| Uhr anhalten / fortsetzen | `PauseClock` / `ResumeClock` |
+| Zeitraffer (Faktor)       | `speed`                      |
+| Bezugspunkt der Uhr       | `ClockAnchor`                |
+| Nachbesprechung           | `Debriefing`                 |
+| Karte                     | `Map`                        |
+| Präsentationsmodus/Beamer | `PresentationView`           |
 
 ## Katalog
 

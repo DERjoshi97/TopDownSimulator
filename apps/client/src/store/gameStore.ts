@@ -1,30 +1,54 @@
 import { create } from 'zustand';
-import { Game, type Command, type DecideResult, type GameEvent, type GameState } from '@tds/engine';
+import {
+  Game,
+  exerciseTimeAt,
+  type ClockAnchor,
+  type Command,
+  type DecideResult,
+  type GameEvent,
+  type GameState,
+} from '@tds/engine';
 
 interface GameStore {
   readonly state: GameState;
   readonly events: readonly GameEvent[];
-  /** Zeitpunkt (Date.now()) des Übungsbeginns. Pausieren folgt mit der Einsatzuhr. */
-  readonly startedAt: number;
+  /** Bezugspunkt der Einsatzuhr. Die aktuelle Übungszeit liefert `exerciseTime()`. */
+  readonly clock: ClockAnchor;
+  /** Übungszeit in Millisekunden – jetzt, nach der echten Uhrzeit. */
+  readonly exerciseTime: () => number;
   /** Einziger Weg, den Spielstand zu ändern: Befehl an die Engine geben. */
   readonly execute: (command: Command) => DecideResult;
 }
 
 /**
  * Erzeugt einen Store rund um eine `Game`-Instanz.
- * Die Engine rechnet, der Store sorgt nur dafür, dass React und Karte von Änderungen erfahren.
+ * Die Engine rechnet, der Store sorgt nur dafür, dass React und Karte von Änderungen erfahren,
+ * und übersetzt die echte Uhrzeit in Übungszeit.
  * `now` ist austauschbar, damit Tests eine feste Uhr verwenden können.
  */
 export function createGameStore(game = new Game(), now: () => number = Date.now) {
+  const anchorAt = (exerciseTime: number): ClockAnchor => ({
+    exerciseTime,
+    wallTime: now(),
+    ...game.state.clock,
+  });
+
   return create<GameStore>()((set, get) => ({
     state: game.state,
     events: game.events,
-    startedAt: now(),
+    clock: anchorAt(game.events.at(-1)?.exerciseTime ?? 0),
+    exerciseTime: () => exerciseTimeAt(get().clock, now()),
     execute: (command) => {
-      const result = game.execute(command, now() - get().startedAt);
+      const exerciseTime = get().exerciseTime();
+      const result = game.execute(command, exerciseTime);
       if (result.ok) {
-        // Neue Array-Kopie, damit React die Änderung erkennt (gleiche Referenz = „nichts geändert“).
-        set({ state: game.state, events: [...game.events] });
+        set({
+          state: game.state,
+          // Neue Array-Kopie, damit React die Änderung erkennt (gleiche Referenz = „nichts geändert“).
+          events: [...game.events],
+          // Neuer Bezugspunkt, damit Anhalten oder Zeitraffer ab genau jetzt gelten.
+          clock: anchorAt(exerciseTime),
+        });
       }
       return result;
     },

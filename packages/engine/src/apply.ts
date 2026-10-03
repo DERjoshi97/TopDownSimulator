@@ -76,6 +76,15 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
       delete situationObjects[event.objectId];
       return { ...state, situationObjects };
     }
+
+    case 'ClockPaused':
+      return { ...state, clock: { ...state.clock, running: false } };
+
+    case 'ClockResumed':
+      return { ...state, clock: { ...state.clock, running: true } };
+
+    case 'ClockSpeedChanged':
+      return { ...state, clock: { ...state.clock, speed: event.speed } };
   }
 }
 

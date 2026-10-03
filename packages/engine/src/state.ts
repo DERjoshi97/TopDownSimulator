@@ -39,6 +39,13 @@ export interface SituationObject {
   readonly visibility: Visibility;
 }
 
+/** Zustand der Einsatzuhr. Wie viel Übungszeit vergangen ist, rechnet `exerciseTimeAt` aus. */
+export interface ClockState {
+  readonly running: boolean;
+  /** Zeitraffer-Faktor: 1 = Echtzeit, 5 = fünfmal so schnell. */
+  readonly speed: number;
+}
+
 /**
  * Der komplette Spielstand zu einem Zeitpunkt.
  * Er wird nie direkt verändert, sondern nur durch Anwenden von Ereignissen neu berechnet.
@@ -46,9 +53,12 @@ export interface SituationObject {
 export interface GameState {
   readonly units: Readonly<Record<UnitId, Unit>>;
   readonly situationObjects: Readonly<Record<SituationObjectId, SituationObject>>;
+  readonly clock: ClockState;
 }
 
 export const initialState: GameState = {
   units: {},
   situationObjects: {},
+  // Eine Übung beginnt angehalten: Die Übungsleitung baut erst die Ausgangslage auf.
+  clock: { running: false, speed: 1 },
 };

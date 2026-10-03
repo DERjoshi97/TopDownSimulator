@@ -1,8 +1,9 @@
-export { formatExerciseTime } from './clock';
+export { exerciseTimeAt, formatExerciseTime, type ClockAnchor } from './clock';
 export { isFiniteVec2, normalizeRotation, type Vec2 } from './geometry';
 export {
   initialState,
   visibilities,
+  type ClockState,
   type GameState,
   type SituationObject,
   type SituationObjectId,
@@ -22,6 +23,9 @@ export type {
   ResizeSituationObject,
   ChangeSituationObjectVisibility,
   RemoveSituationObject,
+  PauseClock,
+  ResumeClock,
+  SetClockSpeed,
 } from './commands';
 export type {
   GameEvent,
@@ -35,6 +39,9 @@ export type {
   SituationObjectResized,
   SituationObjectVisibilityChanged,
   SituationObjectRemoved,
+  ClockPaused,
+  ClockResumed,
+  ClockSpeedChanged,
 } from './events';
 export { decide, type DecideResult, type Rejection } from './decide';
 export { applyEvent, replay } from './apply';

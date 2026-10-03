@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatExerciseTime } from './clock';
+import { exerciseTimeAt, formatExerciseTime } from './clock';
 
 describe('formatExerciseTime', () => {
   it('startet bei 00:00:00', () => {
@@ -20,5 +20,25 @@ describe('formatExerciseTime', () => {
 
   it('behandelt negative Werte als 0', () => {
     expect(formatExerciseTime(-500)).toBe('00:00:00');
+  });
+});
+
+describe('exerciseTimeAt', () => {
+  const anchor = { exerciseTime: 60_000, wallTime: 1_000_000, running: true, speed: 1 };
+
+  it('zählt in Echtzeit weiter', () => {
+    expect(exerciseTimeAt(anchor, 1_030_000)).toBe(90_000);
+  });
+
+  it('steht still, solange die Uhr angehalten ist', () => {
+    expect(exerciseTimeAt({ ...anchor, running: false }, 1_030_000)).toBe(60_000);
+  });
+
+  it('läuft im Zeitraffer schneller', () => {
+    expect(exerciseTimeAt({ ...anchor, speed: 5 }, 1_010_000)).toBe(110_000);
+  });
+
+  it('läuft nie rückwärts, auch wenn die Rechneruhr zurückgestellt wird', () => {
+    expect(exerciseTimeAt(anchor, 900_000)).toBe(60_000);
   });
 });
