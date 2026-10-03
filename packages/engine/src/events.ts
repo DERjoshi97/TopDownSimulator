@@ -78,6 +78,19 @@ export interface SituationObjectRemoved extends BaseEvent {
   readonly objectId: SituationObjectId;
 }
 
+export interface ClockPaused extends BaseEvent {
+  readonly type: 'ClockPaused';
+}
+
+export interface ClockResumed extends BaseEvent {
+  readonly type: 'ClockResumed';
+}
+
+export interface ClockSpeedChanged extends BaseEvent {
+  readonly type: 'ClockSpeedChanged';
+  readonly speed: number;
+}
+
 export type GameEvent =
   | UnitPlaced
   | UnitMoved
@@ -88,4 +101,7 @@ export type GameEvent =
   | SituationObjectRotated
   | SituationObjectResized
   | SituationObjectVisibilityChanged
-  | SituationObjectRemoved;
+  | SituationObjectRemoved
+  | ClockPaused
+  | ClockResumed
+  | ClockSpeedChanged;

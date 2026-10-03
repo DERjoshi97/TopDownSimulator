@@ -19,7 +19,10 @@ export type Rejection =
   | { readonly code: 'invalid-radius' }
   /** Größe ändern geht nur bei Flächen, die schon einen Radius haben. */
   | { readonly code: 'not-resizable'; readonly objectId: SituationObjectId }
-  | { readonly code: 'invalid-visibility' };
+  | { readonly code: 'invalid-visibility' }
+  | { readonly code: 'clock-already-paused' }
+  | { readonly code: 'clock-already-running' }
+  | { readonly code: 'invalid-speed' };
 
 export type DecideResult =
   | { readonly ok: true; readonly events: readonly GameEvent[] }
@@ -171,6 +174,20 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
       }
       return accept({ type: 'SituationObjectRemoved', exerciseTime, objectId: command.objectId });
     }
+
+    case 'PauseClock':
+      if (!state.clock.running) return reject({ code: 'clock-already-paused' });
+      return accept({ type: 'ClockPaused', exerciseTime });
+
+    case 'ResumeClock':
+      if (state.clock.running) return reject({ code: 'clock-already-running' });
+      return accept({ type: 'ClockResumed', exerciseTime });
+
+    case 'SetClockSpeed':
+      if (!Number.isFinite(command.speed) || command.speed <= 0) {
+        return reject({ code: 'invalid-speed' });
+      }
+      return accept({ type: 'ClockSpeedChanged', exerciseTime, speed: command.speed });
   }
 }
 

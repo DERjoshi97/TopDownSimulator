@@ -73,6 +73,19 @@ export interface RemoveSituationObject {
   readonly objectId: SituationObjectId;
 }
 
+export interface PauseClock {
+  readonly type: 'PauseClock';
+}
+
+export interface ResumeClock {
+  readonly type: 'ResumeClock';
+}
+
+export interface SetClockSpeed {
+  readonly type: 'SetClockSpeed';
+  readonly speed: number;
+}
+
 export type Command =
   | PlaceUnit
   | MoveUnit
@@ -83,4 +96,7 @@ export type Command =
   | RotateSituationObject
   | ResizeSituationObject
   | ChangeSituationObjectVisibility
-  | RemoveSituationObject;
+  | RemoveSituationObject
+  | PauseClock
+  | ResumeClock
+  | SetClockSpeed;
