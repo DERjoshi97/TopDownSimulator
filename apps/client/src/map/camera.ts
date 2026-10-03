@@ -107,3 +107,16 @@ export function formatDistance(meters: number): string {
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
+
+/**
+ * Überträgt einen Kartenausschnitt auf ein anders großes Fenster, z. B. vom Laptop auf den Beamer.
+ * Mitte bleibt gleich; der Zoom wird so gewählt, dass mindestens der Bereich des Quellfensters
+ * sichtbar ist. Bei anderem Seitenverhältnis sieht das Zielfenster daher seitlich etwas mehr.
+ */
+export function fitCamera(source: Camera, sourceViewport: Viewport, target: Viewport): Camera {
+  if (sourceViewport.width <= 0 || sourceViewport.height <= 0) return source;
+  const visibleWidth = sourceViewport.width / source.scale;
+  const visibleHeight = sourceViewport.height / source.scale;
+  const scale = Math.min(target.width / visibleWidth, target.height / visibleHeight);
+  return { center: source.center, scale: clamp(scale, MIN_SCALE, MAX_SCALE) };
+}

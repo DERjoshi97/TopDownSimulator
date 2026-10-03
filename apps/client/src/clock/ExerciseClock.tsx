@@ -1,12 +1,9 @@
-import { useEffect, useState } from 'react';
 import { formatExerciseTime } from '@tds/engine';
 import { useGameStore } from '../store/gameStore';
+import { useTicker } from './useTicker';
 
 /** Wählbare Zeitraffer-Faktoren. */
 const SPEEDS = [1, 2, 5, 10];
-
-/** Wie oft die Anzeige aktualisiert wird. Kürzer als 1 s, damit sie auch im Zeitraffer flüssig läuft. */
-const REFRESH_MS = 200;
 
 /** Einsatzuhr mit Start/Pause und Zeitraffer. */
 export function ExerciseClock() {
@@ -15,14 +12,8 @@ export function ExerciseClock() {
   const started = useGameStore((s) => s.events.some((e) => e.type === 'ClockResumed'));
   const execute = useGameStore((s) => s.execute);
   const exerciseTime = useGameStore((s) => s.exerciseTime);
-  const [, setTick] = useState(0);
-
   // Solange die Uhr läuft, regelmäßig neu zeichnen. Angehalten ändert sich nichts.
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => setTick((t) => t + 1), REFRESH_MS);
-    return () => clearInterval(id);
-  }, [running]);
+  useTicker(running);
 
   return (
     <div className="exercise-clock">

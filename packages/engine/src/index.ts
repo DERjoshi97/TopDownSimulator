@@ -48,6 +48,7 @@ export type {
 export { decide, type DecideResult, type Rejection } from './decide';
 export { applyEvent, replay } from './apply';
 export { Game } from './game';
+export { presentationState } from './visibility';
 export {
   EXERCISE_FILE_FORMAT,
   EXERCISE_FILE_VERSION,

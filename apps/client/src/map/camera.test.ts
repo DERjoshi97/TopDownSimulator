@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_SCALE,
   MIN_SCALE,
+  fitCamera,
   formatDistance,
   gridStep,
   niceStepAtLeast,
@@ -109,5 +110,25 @@ describe('formatDistance', () => {
     [2500, '2,5 km'],
   ])('%d m → %s', (input, expected) => {
     expect(formatDistance(input)).toBe(expected);
+  });
+});
+
+describe('fitCamera', () => {
+  const laptop = { width: 1200, height: 800 };
+  const camera = { center: { x: 10, y: 20 }, scale: 10 }; // zeigt 120 × 80 m
+
+  it('behält Mitte und Zoom bei gleicher Fenstergröße', () => {
+    expect(fitCamera(camera, laptop, laptop)).toEqual(camera);
+  });
+
+  it('vergrößert auf einem größeren Bildschirm, damit derselbe Bereich ihn füllt', () => {
+    expect(fitCamera(camera, laptop, { width: 2400, height: 1600 }).scale).toBe(20);
+  });
+
+  it('zeigt bei breiterem Seitenverhältnis mindestens den ganzen Bereich', () => {
+    // 16:9-Beamer: Die Höhe begrenzt – 80 m auf 1080 px.
+    const fitted = fitCamera(camera, laptop, { width: 1920, height: 1080 });
+    expect(fitted.scale).toBeCloseTo(13.5);
+    expect(fitted.center).toEqual(camera.center);
   });
 });

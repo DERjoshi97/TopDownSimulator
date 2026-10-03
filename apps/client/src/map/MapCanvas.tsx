@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { Vec2 } from '@tds/engine';
 import { useGameStore } from '../store/gameStore';
 import { useToolStore } from '../store/toolStore';
+import { useViewStore } from '../store/viewStore';
 import { MapView } from './MapView';
-import { defaultCamera, formatDistance, scaleBar, type Camera } from './camera';
+import { defaultCamera, formatDistance, scaleBar } from './camera';
 import { moveCommand, placeCommand, rotateCommand } from './itemCommands';
 import { mapItemsFromState, typeName } from './mapItems';
 
@@ -14,7 +15,7 @@ import { mapItemsFromState, typeName } from './mapItems';
 export function MapCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<MapView | undefined>(undefined);
-  const [camera, setCamera] = useState<Camera>(defaultCamera);
+  const camera = useViewStore((s) => s.camera);
   const [cursor, setCursor] = useState<Vec2 | undefined>();
   const activeTool = useToolStore((s) => s.activeTool);
 
@@ -25,7 +26,8 @@ export function MapCanvas() {
     // In den Callbacks lesen wir die Stores mit `getState()` statt über Hooks:
     // Die MapView wird nur einmal erzeugt und soll immer den *aktuellen* Stand sehen.
     const view = MapView.create(container, {
-      onCameraChange: setCamera,
+      // Über den Store, damit auch das Beamer-Fenster vom neuen Ausschnitt erfährt.
+      onCameraChange: (camera, viewport) => useViewStore.getState().setView(camera, viewport),
       onCursorMove: setCursor,
       onMapClick: (world, { shiftKey }) => {
         const { activeTool, select } = useToolStore.getState();
