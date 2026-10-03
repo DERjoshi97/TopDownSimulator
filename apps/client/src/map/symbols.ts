@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { findUnitType, type Organization } from '@tds/catalog';
 import { HANDLE_RADIUS, rotationHandleOffset } from './hitTest';
+import type { Vec2 } from '@tds/engine';
 import { isArea, type MapItem } from './mapItems';
 
 // Taktische Zeichen, vereinfacht nach DV 102. Werden im Code gezeichnet (keine Bilddateien):
@@ -231,6 +232,71 @@ function label(text: string, fontSize: number, fill: number): Text {
     text,
     style: { fontFamily: 'system-ui, sans-serif', fontSize, fontWeight: 'bold', fill },
     resolution: LABEL_RESOLUTION,
+  });
+  t.anchor.set(0.5);
+  return t;
+}
+
+const BUILDING_FILL = 0xd6d1c8;
+const BUILDING_STROKE = 0x5a5650;
+
+/**
+ * Zeichnet einen Gebäudegrundriss. `points` sind schon Bildschirmkoordinaten; neu gezeichnet
+ * wird bei jeder Änderung, damit der Rand unabhängig vom Zoom gleich dick bleibt.
+ */
+export function drawBuilding(g: Graphics, points: readonly Vec2[]): void {
+  g.clear()
+    .poly(points.flatMap((p) => [p.x, p.y]))
+    .fill(BUILDING_FILL)
+    .stroke({ color: BUILDING_STROKE, width: 1.5 });
+}
+
+/** Auswahlmarkierung eines Gebäudes: der Grundriss in Blau mit Punkten an den Ecken. */
+export function drawBuildingSelection(g: Graphics, points: readonly Vec2[]): void {
+  g.clear()
+    .poly(points.flatMap((p) => [p.x, p.y]))
+    .stroke({ color: SELECTION_COLOR, width: 2 });
+  for (const p of points) g.circle(p.x, p.y, 3.5).fill(SELECTION_COLOR);
+}
+
+/**
+ * Vorschau beim Zeichnen eines Gebäudes (Bildschirmkoordinaten): gesetzte Eckpunkte, Linie bis
+ * zum Mauszeiger und – wenn das Polygon geschlossen werden kann – ein Ring um den ersten Punkt.
+ */
+export function drawShapePreview(
+  g: Graphics,
+  points: readonly Vec2[],
+  cursor: Vec2 | undefined,
+  canClose: boolean,
+): void {
+  g.clear();
+  const path = cursor ? [...points, cursor] : points;
+  if (path.length >= 3) {
+    g.poly(path.flatMap((p) => [p.x, p.y])).fill({ color: SELECTION_COLOR, alpha: 0.12 });
+  }
+  if (path.length >= 2) {
+    g.moveTo(path[0]!.x, path[0]!.y);
+    for (const p of path.slice(1)) g.lineTo(p.x, p.y);
+    g.stroke({ color: SELECTION_COLOR, width: 2 });
+  }
+  for (const p of points)
+    g.circle(p.x, p.y, 4).fill(0xffffff).stroke({ color: SELECTION_COLOR, width: 2 });
+  if (canClose && points[0]) {
+    g.circle(points[0].x, points[0].y, 9).stroke({ color: SELECTION_COLOR, width: 2 });
+  }
+}
+
+/** Beschriftung eines Gebäudes. Bleibt beim Zoomen gleich groß, damit sie lesbar ist. */
+export function createCaption(): Text {
+  const t = new Text({
+    text: '',
+    style: {
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: 12,
+      fontWeight: '600',
+      fill: 0x3a3732,
+      align: 'center',
+    },
   });
   t.anchor.set(0.5);
   return t;

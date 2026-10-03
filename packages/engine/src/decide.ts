@@ -1,7 +1,8 @@
 import type { Command } from './commands';
+import type { Vec2 } from './geometry';
 import type { GameEvent } from './events';
-import { isFiniteVec2, normalizeRotation } from './geometry';
-import { visibilities, type GameState, type SituationObjectId } from './state';
+import { isFiniteVec2, normalizeRotation, polygonArea } from './geometry';
+import { visibilities, type BuildingId, type GameState, type SituationObjectId } from './state';
 
 /**
  * Grund, warum ein Befehl abgelehnt wurde. Bewusst als Code und nicht als Text:
@@ -21,6 +22,12 @@ export type Rejection =
   /** Radius bzw. Länge ändern geht nur bei Objekten, die schon einen Radius bzw. eine Länge haben. */
   | { readonly code: 'not-resizable'; readonly objectId: SituationObjectId }
   | { readonly code: 'invalid-visibility' }
+  | { readonly code: 'building-already-exists'; readonly buildingId: BuildingId }
+  | { readonly code: 'building-not-found'; readonly buildingId: BuildingId }
+  /** Weniger als drei Eckpunkte, ungültige Koordinaten oder (fast) keine Fläche. */
+  | { readonly code: 'invalid-outline' }
+  | { readonly code: 'invalid-storeys' }
+  | { readonly code: 'invalid-name' }
   | { readonly code: 'clock-already-paused' }
   | { readonly code: 'clock-already-running' }
   | { readonly code: 'invalid-speed' };
@@ -195,6 +202,61 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
       return accept({ type: 'SituationObjectRemoved', exerciseTime, objectId: command.objectId });
     }
 
+    case 'AddBuilding': {
+      if (state.buildings[command.buildingId]) {
+        return reject({ code: 'building-already-exists', buildingId: command.buildingId });
+      }
+      if (!isValidOutline(command.outline)) return reject({ code: 'invalid-outline' });
+      const storeys = command.storeys ?? 1;
+      if (!isValidStoreys(storeys)) return reject({ code: 'invalid-storeys' });
+      const name = command.name?.trim();
+      if (name !== undefined && name.length > MAX_NAME_LENGTH)
+        return reject({ code: 'invalid-name' });
+      return accept({
+        type: 'BuildingAdded',
+        exerciseTime,
+        buildingId: command.buildingId,
+        outline: command.outline,
+        storeys,
+        ...(name && { name }),
+      });
+    }
+
+    case 'MoveBuilding': {
+      const building = state.buildings[command.buildingId];
+      if (!building) return reject({ code: 'building-not-found', buildingId: command.buildingId });
+      if (!isFiniteVec2(command.offset)) return reject({ code: 'invalid-position' });
+      return accept({
+        type: 'BuildingMoved',
+        exerciseTime,
+        buildingId: building.id,
+        offset: command.offset,
+      });
+    }
+
+    case 'ChangeBuilding': {
+      const building = state.buildings[command.buildingId];
+      if (!building) return reject({ code: 'building-not-found', buildingId: command.buildingId });
+      const storeys = command.storeys ?? building.storeys;
+      if (!isValidStoreys(storeys)) return reject({ code: 'invalid-storeys' });
+      const name = command.name === undefined ? building.name : command.name.trim();
+      if (name !== undefined && name.length > MAX_NAME_LENGTH)
+        return reject({ code: 'invalid-name' });
+      return accept({
+        type: 'BuildingChanged',
+        exerciseTime,
+        buildingId: building.id,
+        storeys,
+        ...(name && { name }),
+      });
+    }
+
+    case 'RemoveBuilding':
+      if (!state.buildings[command.buildingId]) {
+        return reject({ code: 'building-not-found', buildingId: command.buildingId });
+      }
+      return accept({ type: 'BuildingRemoved', exerciseTime, buildingId: command.buildingId });
+
     case 'PauseClock':
       if (!state.clock.running) return reject({ code: 'clock-already-paused' });
       return accept({ type: 'ClockPaused', exerciseTime });
@@ -209,6 +271,23 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
       }
       return accept({ type: 'ClockSpeedChanged', exerciseTime, speed: command.speed });
   }
+}
+
+/** Längster erlaubter Gebäudename – reicht für "Mehrfamilienhaus Hauptstraße 12". */
+const MAX_NAME_LENGTH = 60;
+
+/** Kleinste Grundfläche in m², damit versehentliche Mini-Klicks kein Gebäude ergeben. */
+const MIN_BUILDING_AREA = 1;
+
+function isValidOutline(outline: readonly Vec2[]): boolean {
+  return (
+    outline.length >= 3 && outline.every(isFiniteVec2) && polygonArea(outline) >= MIN_BUILDING_AREA
+  );
+}
+
+/** Ganze Zahl von 1 bis 100 – mehr Geschosse hat kaum ein Hochhaus. */
+function isValidStoreys(storeys: number): boolean {
+  return Number.isInteger(storeys) && storeys >= 1 && storeys <= 100;
 }
 
 function isPositive(value: number): boolean {

@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { visibilities, type Visibility } from '@tds/engine';
+import { useEffect, useState } from 'react';
+import { polygonArea, visibilities, type Building, type Visibility } from '@tds/engine';
 import { ROTATION_STEP } from '../map/hitTest';
 import { removeCommand, rotateCommand } from '../map/itemCommands';
 import { findMapItem, isArea, typeName, type MapItemRef } from '../map/mapItems';
@@ -31,6 +31,7 @@ export function SelectionPanel() {
     selection?.kind === 'situationObject'
       ? state.situationObjects[selection.id]?.visibility
       : undefined;
+  const building = selection?.kind === 'building' ? state.buildings[selection.id] : undefined;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -65,7 +66,7 @@ export function SelectionPanel() {
           <p className="selection-panel-name">{name}</p>
         </>
       ) : (
-        <h2>{name}</h2>
+        <h2>{building?.name ?? name}</h2>
       )}
 
       {item.rotatable && (
@@ -134,6 +135,9 @@ export function SelectionPanel() {
         </div>
       )}
 
+      {/* `key`: Bei einem anderen Gebäude beginnt das Namensfeld neu. */}
+      {building && <BuildingFields key={building.id} building={building} />}
+
       {visibility && (
         <fieldset className="selection-panel-visibility">
           <legend>Sichtbar für</legend>
@@ -187,6 +191,60 @@ function changeVisibility(ref: MapItemRef, visibility: Visibility): void {
   useGameStore
     .getState()
     .execute({ type: 'ChangeSituationObjectVisibility', objectId: ref.id, visibility });
+}
+
+/** Name, Geschosszahl und Grundfläche eines Gebäudes. */
+function BuildingFields({ building }: { building: Building }) {
+  const [name, setName] = useState(building.name ?? '');
+  const commitName = () => {
+    if (name.trim() !== (building.name ?? '')) {
+      useGameStore.getState().execute({ type: 'ChangeBuilding', buildingId: building.id, name });
+    }
+  };
+  const changeStoreys = (storeys: number) =>
+    useGameStore.getState().execute({ type: 'ChangeBuilding', buildingId: building.id, storeys });
+
+  return (
+    <>
+      <label className="selection-panel-field">
+        <span>Name</span>
+        <input
+          type="text"
+          value={name}
+          maxLength={60}
+          placeholder="z. B. Schule"
+          onChange={(e) => setName(e.target.value)}
+          onBlur={commitName}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+        />
+      </label>
+      <div className="selection-panel-row">
+        <span>
+          {building.storeys} {building.storeys === 1 ? 'Geschoss' : 'Geschosse'}
+        </span>
+        <button
+          type="button"
+          aria-label="Geschoss weniger"
+          disabled={building.storeys <= 1}
+          onClick={() => changeStoreys(building.storeys - 1)}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          aria-label="Geschoss mehr"
+          onClick={() => changeStoreys(building.storeys + 1)}
+        >
+          +
+        </button>
+      </div>
+      <p className="selection-panel-info">
+        Grundfläche {Math.round(polygonArea(building.outline)).toLocaleString('de-DE')} m²
+      </p>
+    </>
+  );
 }
 
 function remove(ref: MapItemRef): void {

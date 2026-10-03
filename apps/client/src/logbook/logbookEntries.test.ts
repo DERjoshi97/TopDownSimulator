@@ -77,3 +77,47 @@ describe('logbookEntries', () => {
     ]);
   });
 });
+
+describe('Karte und Absperrung im Tagebuch', () => {
+  it('beschreibt Gebäude mit Name, Geschossen und Fläche', () => {
+    const outline = [
+      { x: 0, y: 0 },
+      { x: 12, y: 0 },
+      { x: 12, y: 10 },
+      { x: 0, y: 10 },
+    ];
+    const entries = play(
+      [0, { type: 'AddBuilding', buildingId: 'b', outline, storeys: 2 }],
+      [0, { type: 'ChangeBuilding', buildingId: 'b', name: 'Schule', storeys: 3 }],
+      [0, { type: 'MoveBuilding', buildingId: 'b', offset: { x: 3, y: 4 } }],
+      [0, { type: 'RemoveBuilding', buildingId: 'b' }],
+    );
+    expect(texts(entries)).toEqual([
+      'Karte: Gebäude 1 gezeichnet (2 Geschosse, 120 m²)',
+      'Gebäude 1: umbenannt in „Schule“, 3 Geschosse',
+      'Gebäude 1 verschoben (5 m)',
+      'Gebäude 1 entfernt',
+    ]);
+  });
+
+  it('beschreibt Längenänderungen einer Absperrung', () => {
+    const entries = play(
+      [
+        0,
+        {
+          type: 'PlaceSituationObject',
+          objectId: 'c',
+          objectType: 'cordon',
+          position: { x: 0, y: 0 },
+          length: 10,
+        },
+      ],
+      [0, { type: 'ChangeSituationObjectLength', objectId: 'c', length: 25 }],
+      [0, { type: 'ChangeSituationObjectLength', objectId: 'c', length: 20 }],
+    );
+    expect(texts(entries).slice(1)).toEqual([
+      'Absperrung 1 verlängert auf 25 m',
+      'Absperrung 1 verkürzt auf 20 m',
+    ]);
+  });
+});

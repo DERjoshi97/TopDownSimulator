@@ -1,5 +1,5 @@
 import type { Vec2 } from './geometry';
-import type { SituationObjectId, UnitId, Visibility } from './state';
+import type { BuildingId, SituationObjectId, UnitId, Visibility } from './state';
 
 // Ereignisse beschreiben, was tatsächlich *passiert ist* (daher Vergangenheitsform).
 // Sie sind bereits geprüft und werden nie verändert oder gelöscht –
@@ -86,6 +86,33 @@ export interface SituationObjectRemoved extends BaseEvent {
   readonly objectId: SituationObjectId;
 }
 
+export interface BuildingAdded extends BaseEvent {
+  readonly type: 'BuildingAdded';
+  readonly buildingId: BuildingId;
+  readonly outline: readonly Vec2[];
+  readonly storeys: number;
+  readonly name?: string;
+}
+
+export interface BuildingMoved extends BaseEvent {
+  readonly type: 'BuildingMoved';
+  readonly buildingId: BuildingId;
+  readonly offset: Vec2;
+}
+
+export interface BuildingChanged extends BaseEvent {
+  readonly type: 'BuildingChanged';
+  readonly buildingId: BuildingId;
+  readonly storeys: number;
+  /** Fehlt, wenn das Gebäude keinen Namen (mehr) hat. */
+  readonly name?: string;
+}
+
+export interface BuildingRemoved extends BaseEvent {
+  readonly type: 'BuildingRemoved';
+  readonly buildingId: BuildingId;
+}
+
 export interface ClockPaused extends BaseEvent {
   readonly type: 'ClockPaused';
 }
@@ -111,6 +138,10 @@ export type GameEvent =
   | SituationObjectLengthChanged
   | SituationObjectVisibilityChanged
   | SituationObjectRemoved
+  | BuildingAdded
+  | BuildingMoved
+  | BuildingChanged
+  | BuildingRemoved
   | ClockPaused
   | ClockResumed
   | ClockSpeedChanged;

@@ -1,9 +1,16 @@
 import { findSituationObjectType, findUnitType } from '@tds/catalog';
-import type { GameState, SituationObject, Unit, Vec2 } from '@tds/engine';
+import {
+  polygonCentroid,
+  type Building,
+  type GameState,
+  type SituationObject,
+  type Unit,
+  type Vec2,
+} from '@tds/engine';
 
-/** Verweis auf etwas, das auf der Karte liegt – eine Einheit oder ein Lageobjekt. */
+/** Verweis auf etwas, das auf der Karte liegt – eine Einheit, ein Lageobjekt oder ein Gebäude. */
 export interface MapItemRef {
-  readonly kind: 'unit' | 'situationObject';
+  readonly kind: 'unit' | 'situationObject' | 'building';
   readonly id: string;
 }
 
@@ -29,6 +36,13 @@ export interface MapItem {
   readonly radius?: number;
   /** Einstellbare Länge in Metern, z. B. bei einer Absperrung. Entspricht dann `size.width`. */
   readonly length?: number;
+  /**
+   * Grundriss in Metern bei Gebäuden. `position` ist dann der Schwerpunkt; `size` spielt keine
+   * Rolle, getroffen wird innerhalb des Grundrisses.
+   */
+  readonly outline?: readonly Vec2[];
+  /** Beschriftung, z. B. Name und Geschosszahl eines Gebäudes. */
+  readonly caption?: string;
   readonly rotatable: boolean;
   /** Halbtransparent zeichnen, z. B. weil nur die Übungsleitung das Objekt sieht. */
   readonly dimmed: boolean;
@@ -79,12 +93,29 @@ export function situationObjectItem(object: SituationObject): MapItem {
   };
 }
 
+export function buildingItem(building: Building): MapItem {
+  const storeys = `${building.storeys} ${building.storeys === 1 ? 'Geschoss' : 'Geschosse'}`;
+  return {
+    ref: { kind: 'building', id: building.id },
+    symbolType: 'building',
+    position: polygonCentroid(building.outline),
+    rotation: 0,
+    size: { width: 0, height: 0 },
+    outline: building.outline,
+    caption: building.name ? `${building.name}\n${storeys}` : storeys,
+    rotatable: false,
+    dimmed: false,
+  };
+}
+
 /**
- * Alle Objekte des Spielstands in Zeichenreihenfolge: zuerst die Lageobjekte, darüber die Einheiten.
+ * Alle Objekte des Spielstands in Zeichenreihenfolge: zuunterst die Gebäude, darüber die
+ * Lageobjekte, ganz oben die Einheiten.
  * Wer später kommt, liegt oben und wird beim Klicken zuerst getroffen.
  */
 export function mapItemsFromState(state: GameState): MapItem[] {
   return [
+    ...Object.values(state.buildings).map(buildingItem),
     ...Object.values(state.situationObjects).map(situationObjectItem),
     ...Object.values(state.units).map(unitItem),
   ];
@@ -96,6 +127,10 @@ export function findMapItem(state: GameState, ref: MapItemRef | undefined): MapI
   if (ref.kind === 'unit') {
     const unit = state.units[ref.id];
     return unit && unitItem(unit);
+  }
+  if (ref.kind === 'building') {
+    const building = state.buildings[ref.id];
+    return building && buildingItem(building);
   }
   const object = state.situationObjects[ref.id];
   return object && situationObjectItem(object);
@@ -112,6 +147,7 @@ export function refKey(ref: MapItemRef): string {
 
 /** Ausgeschriebener Name aus dem Katalog, z. B. "Feuer". Unbekannte Typen zeigen ihre Kennung. */
 export function typeName(kind: MapItemRef['kind'], typeId: string): string {
+  if (kind === 'building') return 'Gebäude';
   const definition = kind === 'unit' ? findUnitType(typeId) : findSituationObjectType(typeId);
   return definition?.name ?? typeId;
 }

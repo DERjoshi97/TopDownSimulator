@@ -41,6 +41,20 @@ export interface SituationObject {
   readonly visibility: Visibility;
 }
 
+/** Eindeutige Kennung eines Gebäudes. Wird wie `UnitId` vom Aufrufer erzeugt. */
+export type BuildingId = string;
+
+/** Ein Gebäude auf der Karte – Teil des Kartenbilds, für alle sichtbar. */
+export interface Building {
+  readonly id: BuildingId;
+  /** Grundriss als Eckpunkte in Metern (mindestens drei). */
+  readonly outline: readonly Vec2[];
+  /** Anzahl der Geschosse über der Erde, mindestens 1. Grundlage für die spätere 3D-Ansicht. */
+  readonly storeys: number;
+  /** Optionaler Name, z. B. "Schule" oder "Haus A". */
+  readonly name?: string;
+}
+
 /** Zustand der Einsatzuhr. Wie viel Übungszeit vergangen ist, rechnet `exerciseTimeAt` aus. */
 export interface ClockState {
   readonly running: boolean;
@@ -55,12 +69,14 @@ export interface ClockState {
 export interface GameState {
   readonly units: Readonly<Record<UnitId, Unit>>;
   readonly situationObjects: Readonly<Record<SituationObjectId, SituationObject>>;
+  readonly buildings: Readonly<Record<BuildingId, Building>>;
   readonly clock: ClockState;
 }
 
 export const initialState: GameState = {
   units: {},
   situationObjects: {},
+  buildings: {},
   // Eine Übung beginnt angehalten: Die Übungsleitung baut erst die Ausgangslage auf.
   clock: { running: false, speed: 1 },
 };

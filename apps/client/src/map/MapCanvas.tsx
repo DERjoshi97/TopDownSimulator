@@ -5,7 +5,7 @@ import { useToolStore } from '../store/toolStore';
 import { useViewStore } from '../store/viewStore';
 import { MapView } from './MapView';
 import { defaultCamera, formatDistance, scaleBar } from './camera';
-import { moveCommand, placeCommand, rotateCommand } from './itemCommands';
+import { addBuildingCommand, moveCommand, placeCommand, rotateCommand } from './itemCommands';
 import { mapItemsFromState, typeName } from './mapItems';
 
 /**
@@ -36,6 +36,8 @@ export function MapCanvas() {
           select(undefined);
           return;
         }
+        // Gebäude zeichnet die Kartenansicht selbst und meldet sie über `onShapeDrawn`.
+        if (activeTool.kind === 'building') return;
         const id = crypto.randomUUID();
         const result = useGameStore.getState().execute(placeCommand(activeTool, id, world));
         // Mit gedrückter Umschalttaste bleibt das Werkzeug aktiv, um mehrere Objekte zu setzen.
@@ -43,8 +45,12 @@ export function MapCanvas() {
         if (!shiftKey && result.ok) select({ kind: activeTool.kind, id });
       },
       onItemSelect: (ref) => useToolStore.getState().select(ref),
-      onItemMoveEnd: (ref, position) => {
-        useGameStore.getState().execute(moveCommand(ref, position));
+      onItemMoveEnd: (ref, position, from) => {
+        useGameStore.getState().execute(moveCommand(ref, position, from));
+      },
+      // Das Werkzeug bleibt aktiv, damit man mehrere Gebäude nacheinander zeichnen kann.
+      onShapeDrawn: (outline) => {
+        useGameStore.getState().execute(addBuildingCommand(crypto.randomUUID(), outline));
       },
       onItemRotateEnd: (ref, rotation) => {
         useGameStore.getState().execute(rotateCommand(ref, rotation));
@@ -75,7 +81,10 @@ export function MapCanvas() {
       v.setSelection(useToolStore.getState().selection);
       unsubscribers.push(
         useGameStore.subscribe((s) => v.setItems(mapItemsFromState(s.state))),
-        useToolStore.subscribe((s) => v.setSelection(s.selection)),
+        useToolStore.subscribe((s) => {
+          v.setSelection(s.selection);
+          v.setDrawMode(s.activeTool?.kind === 'building' ? s.activeTool.typeId : undefined);
+        }),
       );
     });
 
@@ -90,14 +99,43 @@ export function MapCanvas() {
   const bar = scaleBar(camera.scale);
   const activeName = activeTool && typeName(activeTool.kind, activeTool.typeId);
 
+  // Tasten beim Polygon-Zeichnen: Enter schließt ab, ⌫ nimmt den letzten Punkt zurück.
+  // (Esc beendet das Werkzeug ganz – das übernimmt die Werkzeugleiste.)
+  const isDrawingPolygon = activeTool?.kind === 'building' && activeTool.typeId === 'polygon';
+  useEffect(() => {
+    if (!isDrawingPolygon) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') viewRef.current?.finishPolygon();
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        viewRef.current?.undoPolygonPoint();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isDrawingPolygon]);
+
   return (
     <div className="map">
       <div ref={containerRef} className={`map-canvas${activeTool ? ' map-canvas--placing' : ''}`} />
 
-      {activeName && (
+      {activeTool && (
         <div className="map-hint" role="status">
-          Klicken, um <strong>{activeName}</strong> zu platzieren · Umschalt: mehrere · Esc:
-          abbrechen
+          {activeTool.kind !== 'building' ? (
+            <>
+              Klicken, um <strong>{activeName}</strong> zu platzieren · Umschalt: mehrere · Esc:
+              abbrechen
+            </>
+          ) : activeTool.typeId === 'rectangle' ? (
+            <>
+              <strong>Gebäude:</strong> Rechteck aufziehen · Esc: beenden
+            </>
+          ) : (
+            <>
+              <strong>Gebäude:</strong> Eckpunkte klicken · Doppelklick/Enter: fertig · ⌫: Punkt
+              zurück · Esc: beenden
+            </>
+          )}
         </div>
       )}
 

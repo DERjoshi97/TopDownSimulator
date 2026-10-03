@@ -32,6 +32,16 @@ export function hitTestItems(
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]!;
     const center = worldToScreen(camera, viewport, item.position);
+    if (item.outline) {
+      const outline = item.outline.map((p) => worldToScreen(camera, viewport, p));
+      if (
+        pointInPolygon(screenPoint, outline) ||
+        distanceToOutline(screenPoint, outline) <= HIT_MARGIN
+      ) {
+        return item;
+      }
+      continue;
+    }
     const offset = { x: screenPoint.x - center.x, y: screenPoint.y - center.y };
     if (
       isArea(item) &&
@@ -117,4 +127,41 @@ function rotate(v: Vec2, degrees: number): Vec2 {
   const cos = Math.cos(rad);
   const sin = Math.sin(rad);
   return { x: v.x * cos - v.y * sin, y: v.x * sin + v.y * cos };
+}
+
+/** Liegt `point` innerhalb des Polygons? (Strahlverfahren: Kanten rechts vom Punkt zählen.) */
+export function pointInPolygon(point: Vec2, polygon: readonly Vec2[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const a = polygon[i]!;
+    const b = polygon[j]!;
+    if (a.y > point.y !== b.y > point.y) {
+      const x = ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y) + a.x;
+      if (point.x < x) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Kürzester Abstand von `point` zum Rand des Polygons. */
+export function distanceToOutline(point: Vec2, polygon: readonly Vec2[]): number {
+  let best = Infinity;
+  for (let i = 0; i < polygon.length; i++) {
+    best = Math.min(
+      best,
+      distanceToSegment(point, polygon[i]!, polygon[(i + 1) % polygon.length]!),
+    );
+  }
+  return best;
+}
+
+function distanceToSegment(p: Vec2, a: Vec2, b: Vec2): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t =
+    lengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSquared));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }

@@ -1,8 +1,17 @@
 export { exerciseTimeAt, formatExerciseTime, type ClockAnchor } from './clock';
-export { isFiniteVec2, normalizeRotation, type Vec2 } from './geometry';
+export {
+  isFiniteVec2,
+  normalizeRotation,
+  polygonArea,
+  polygonCentroid,
+  translatePoints,
+  type Vec2,
+} from './geometry';
 export {
   initialState,
   visibilities,
+  type Building,
+  type BuildingId,
   type ClockState,
   type GameState,
   type SituationObject,
@@ -24,6 +33,10 @@ export type {
   ChangeSituationObjectLength,
   ChangeSituationObjectVisibility,
   RemoveSituationObject,
+  AddBuilding,
+  MoveBuilding,
+  ChangeBuilding,
+  RemoveBuilding,
   PauseClock,
   ResumeClock,
   SetClockSpeed,
@@ -41,6 +54,10 @@ export type {
   SituationObjectLengthChanged,
   SituationObjectVisibilityChanged,
   SituationObjectRemoved,
+  BuildingAdded,
+  BuildingMoved,
+  BuildingChanged,
+  BuildingRemoved,
   ClockPaused,
   ClockResumed,
   ClockSpeedChanged,

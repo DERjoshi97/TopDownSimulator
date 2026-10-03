@@ -105,6 +105,7 @@ const isString: FieldCheck = (v) => typeof v === 'string' && v.length > 0;
 const isNumber: FieldCheck = (v) => typeof v === 'number' && Number.isFinite(v);
 const isPositive: FieldCheck = (v) => isNumber(v) && (v as number) > 0;
 const isVec2: FieldCheck = (v) => isRecord(v) && isNumber(v.x) && isNumber(v.y);
+const isOutline: FieldCheck = (v) => Array.isArray(v) && v.length >= 3 && v.every(isVec2);
 const isVisibility: FieldCheck = (v) => visibilities.includes(v as never);
 const optional =
   (check: FieldCheck): FieldCheck =>
@@ -135,6 +136,15 @@ const EVENT_FIELDS = {
   SituationObjectLengthChanged: { objectId: isString, length: isPositive },
   SituationObjectVisibilityChanged: { objectId: isString, visibility: isVisibility },
   SituationObjectRemoved: { objectId: isString },
+  BuildingAdded: {
+    buildingId: isString,
+    outline: isOutline,
+    storeys: isPositive,
+    name: optional(isString),
+  },
+  BuildingMoved: { buildingId: isString, offset: isVec2 },
+  BuildingChanged: { buildingId: isString, storeys: isPositive, name: optional(isString) },
+  BuildingRemoved: { buildingId: isString },
   ClockPaused: {},
   ClockResumed: {},
   ClockSpeedChanged: { speed: isPositive },

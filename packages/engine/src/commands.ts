@@ -1,5 +1,5 @@
 import type { Vec2 } from './geometry';
-import type { SituationObjectId, UnitId, Visibility } from './state';
+import type { BuildingId, SituationObjectId, UnitId, Visibility } from './state';
 
 // Befehle beschreiben, was jemand tun *möchte*. Die Engine prüft sie in `decide`
 // und macht daraus Ereignisse – oder lehnt sie ab.
@@ -81,6 +81,35 @@ export interface RemoveSituationObject {
   readonly objectId: SituationObjectId;
 }
 
+export interface AddBuilding {
+  readonly type: 'AddBuilding';
+  readonly buildingId: BuildingId;
+  readonly outline: readonly Vec2[];
+  /** Optional, Standard ist 1. */
+  readonly storeys?: number;
+  readonly name?: string;
+}
+
+export interface MoveBuilding {
+  readonly type: 'MoveBuilding';
+  readonly buildingId: BuildingId;
+  /** Verschiebung in Metern – der ganze Grundriss wandert mit. */
+  readonly offset: Vec2;
+}
+
+export interface ChangeBuilding {
+  readonly type: 'ChangeBuilding';
+  readonly buildingId: BuildingId;
+  /** Nur die angegebenen Felder ändern sich. Ein leerer Name entfernt den Namen. */
+  readonly storeys?: number;
+  readonly name?: string;
+}
+
+export interface RemoveBuilding {
+  readonly type: 'RemoveBuilding';
+  readonly buildingId: BuildingId;
+}
+
 export interface PauseClock {
   readonly type: 'PauseClock';
 }
@@ -106,6 +135,10 @@ export type Command =
   | ChangeSituationObjectLength
   | ChangeSituationObjectVisibility
   | RemoveSituationObject
+  | AddBuilding
+  | MoveBuilding
+  | ChangeBuilding
+  | RemoveBuilding
   | PauseClock
   | ResumeClock
   | SetClockSpeed;

@@ -1,8 +1,10 @@
 import {
   applyEvent,
   initialState,
+  polygonArea,
   type GameEvent,
   type GameState,
+  type Vec2,
   type Visibility,
 } from '@tds/engine';
 import { typeName, type MapItemRef } from '../map/mapItems';
@@ -119,6 +121,42 @@ function describe(
       };
     case 'SituationObjectRemoved':
       return { text: `${label('situationObject', event.objectId)} entfernt` };
+    case 'SituationObjectLengthChanged': {
+      const before = state.situationObjects[event.objectId]?.length;
+      const change = before !== undefined && event.length < before ? 'verkürzt' : 'verlängert';
+      return {
+        ref: object(event.objectId),
+        text: `${label('situationObject', event.objectId)} ${change} auf ${formatMeters(event.length)}`,
+      };
+    }
+
+    case 'BuildingAdded': {
+      const name = label('building', event.buildingId, 'building');
+      const named = event.name ? ` „${event.name}“` : '';
+      return {
+        ref: building(event.buildingId),
+        text: `Karte: ${name}${named} gezeichnet (${storeysText(event.storeys)}, ${formatArea(event.outline)})`,
+      };
+    }
+    case 'BuildingMoved':
+      return {
+        ref: building(event.buildingId),
+        text: `${label('building', event.buildingId)} verschoben (${formatMeters(Math.hypot(event.offset.x, event.offset.y))})`,
+      };
+    case 'BuildingChanged': {
+      const before = state.buildings[event.buildingId];
+      const changes: string[] = [];
+      if (before && before.name !== event.name) {
+        changes.push(event.name ? `umbenannt in „${event.name}“` : 'Name entfernt');
+      }
+      if (before && before.storeys !== event.storeys) changes.push(storeysText(event.storeys));
+      return {
+        ref: building(event.buildingId),
+        text: `${label('building', event.buildingId)}: ${changes.join(', ') || 'unverändert'}`,
+      };
+    }
+    case 'BuildingRemoved':
+      return { text: `${label('building', event.buildingId)} entfernt` };
 
     case 'ClockResumed':
       // Erster Start der Uhr = Übungsbeginn, danach geht es nach einer Pause weiter.
@@ -134,6 +172,15 @@ function describe(
 
 const unit = (id: string): MapItemRef => ({ kind: 'unit', id });
 const object = (id: string): MapItemRef => ({ kind: 'situationObject', id });
+const building = (id: string): MapItemRef => ({ kind: 'building', id });
+
+function storeysText(storeys: number): string {
+  return `${storeys} ${storeys === 1 ? 'Geschoss' : 'Geschosse'}`;
+}
+
+function formatArea(outline: readonly Vec2[]): string {
+  return `${Math.round(polygonArea(outline)).toLocaleString('de-DE')} m²`;
+}
 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(a.x - b.x, a.y - b.y);

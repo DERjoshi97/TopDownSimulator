@@ -7,6 +7,11 @@ const UNIT_GROUPS: { shape: SymbolShape; title: string }[] = [
   { shape: 'team', title: 'Trupps' },
 ];
 
+const BUILDING_TOOLS = [
+  { typeId: 'rectangle', label: 'Gebäude ▭', title: 'Gebäude als Rechteck aufziehen' },
+  { typeId: 'polygon', label: 'Gebäude ⬠', title: 'Gebäude Eckpunkt für Eckpunkt zeichnen' },
+] as const;
+
 /** Werkzeugleiste zum Platzieren von Einheiten und Lageobjekten: Typ wählen, dann auf die Karte klicken. */
 export function Toolbar() {
   const activeTool = useToolStore((s) => s.activeTool);
@@ -67,6 +72,28 @@ export function Toolbar() {
               >
                 <span className={`swatch swatch--${t.id}`} aria-hidden="true" />
                 {t.name}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section>
+        <h2>Karte</h2>
+        <div className="toolbar-buttons toolbar-buttons--list">
+          {BUILDING_TOOLS.map(({ typeId, label, title }) => {
+            const tool = { kind: 'building', typeId } as const;
+            return (
+              <button
+                key={typeId}
+                type="button"
+                title={title}
+                aria-pressed={isSameTool(activeTool, tool)}
+                className="toolbar-button toolbar-button--situation"
+                onClick={() => toggle(tool)}
+              >
+                <span className={`swatch swatch--building-${typeId}`} aria-hidden="true" />
+                {label}
               </button>
             );
           })}
