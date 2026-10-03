@@ -6,11 +6,12 @@ import { findMapItem, isArea, typeName, type MapItemRef } from '../map/mapItems'
 import { useGameStore } from '../store/gameStore';
 import { useToolStore } from '../store/toolStore';
 
-/** Schritt in Metern für die Knöpfe zum Vergrößern und Verkleinern einer Fläche. */
-const RADIUS_STEP = 1;
+/** Schritt in Metern für die Knöpfe zum Vergrößern und Verkleinern von Radius und Länge. */
+const SIZE_STEP = 1;
 
-/** Kleinster Radius, den die Knöpfe einstellen – passend zum Größen-Griff auf der Karte. */
+/** Kleinster Radius bzw. kleinste Länge, die die Knöpfe einstellen – passend zu den Griffen. */
 const MIN_RADIUS = 0.5;
+const MIN_LENGTH = 1;
 
 const VISIBILITY_LABELS: Record<Visibility, string> = {
   director: 'Übungsleitung',
@@ -54,6 +55,7 @@ export function SelectionPanel() {
 
   if (!item) return null;
   const name = typeName(item.ref.kind, item.symbolType);
+  const { length } = item;
 
   return (
     <section className="selection-panel" aria-label="Auswahl">
@@ -94,7 +96,7 @@ export function SelectionPanel() {
             title="Verkleinern"
             aria-label="Radius verkleinern"
             disabled={item.radius <= MIN_RADIUS}
-            onClick={() => resize(item.ref, Math.max(MIN_RADIUS, item.radius - RADIUS_STEP))}
+            onClick={() => resize(item.ref, Math.max(MIN_RADIUS, item.radius - SIZE_STEP))}
           >
             −
           </button>
@@ -102,7 +104,30 @@ export function SelectionPanel() {
             type="button"
             title="Vergrößern"
             aria-label="Radius vergrößern"
-            onClick={() => resize(item.ref, item.radius + RADIUS_STEP)}
+            onClick={() => resize(item.ref, item.radius + SIZE_STEP)}
+          >
+            +
+          </button>
+        </div>
+      )}
+
+      {length !== undefined && (
+        <div className="selection-panel-row">
+          <span>Länge {formatMeters(length)}</span>
+          <button
+            type="button"
+            title="Kürzen"
+            aria-label="Länge kürzen"
+            disabled={length <= MIN_LENGTH}
+            onClick={() => changeLength(item.ref, Math.max(MIN_LENGTH, length - SIZE_STEP))}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            title="Verlängern"
+            aria-label="Länge verlängern"
+            onClick={() => changeLength(item.ref, length + SIZE_STEP)}
           >
             +
           </button>
@@ -148,6 +173,14 @@ function resize(ref: MapItemRef, radius: number): void {
   useGameStore
     .getState()
     .execute({ type: 'ResizeSituationObject', objectId: ref.id, radius: rounded });
+}
+
+function changeLength(ref: MapItemRef, length: number): void {
+  useGameStore.getState().execute({
+    type: 'ChangeSituationObjectLength',
+    objectId: ref.id,
+    length: Math.round(length * 10) / 10,
+  });
 }
 
 function changeVisibility(ref: MapItemRef, visibility: Visibility): void {

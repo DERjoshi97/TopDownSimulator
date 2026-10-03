@@ -40,6 +40,8 @@ export interface PlaceSituationObject {
   readonly rotation?: number;
   /** Nur bei Flächen, in Metern. */
   readonly radius?: number;
+  /** Nur bei linienförmigen Objekten wie einer Absperrung, in Metern. */
+  readonly length?: number;
   /** Optional, Standard ist `everyone`. */
   readonly visibility?: Visibility;
 }
@@ -62,6 +64,12 @@ export interface ResizeSituationObject {
   readonly radius: number;
 }
 
+export interface ChangeSituationObjectLength {
+  readonly type: 'ChangeSituationObjectLength';
+  readonly objectId: SituationObjectId;
+  readonly length: number;
+}
+
 export interface ChangeSituationObjectVisibility {
   readonly type: 'ChangeSituationObjectVisibility';
   readonly objectId: SituationObjectId;
@@ -82,5 +90,6 @@ export type Command =
   | MoveSituationObject
   | RotateSituationObject
   | ResizeSituationObject
+  | ChangeSituationObjectLength
   | ChangeSituationObjectVisibility
   | RemoveSituationObject;

@@ -20,6 +20,7 @@ export type {
   MoveSituationObject,
   RotateSituationObject,
   ResizeSituationObject,
+  ChangeSituationObjectLength,
   ChangeSituationObjectVisibility,
   RemoveSituationObject,
 } from './commands';
@@ -33,6 +34,7 @@ export type {
   SituationObjectMoved,
   SituationObjectRotated,
   SituationObjectResized,
+  SituationObjectLengthChanged,
   SituationObjectVisibilityChanged,
   SituationObjectRemoved,
 } from './events';

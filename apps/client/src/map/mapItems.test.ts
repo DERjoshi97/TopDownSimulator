@@ -65,3 +65,31 @@ describe('typeName', () => {
     expect(typeName('situationObject', 'unbekannt')).toBe('unbekannt');
   });
 });
+
+describe('maßstäbliche Größen', () => {
+  it('übernimmt die Fahrzeugmaße aus dem Katalog', () => {
+    expect(findMapItem(state, { kind: 'unit', id: 'hlf-1' })?.size).toEqual({
+      width: 8.5,
+      height: 2.5,
+    });
+  });
+
+  it('nimmt bei einstellbarer Länge die Länge des Objekts', () => {
+    const withLength = replay([
+      {
+        type: 'SituationObjectPlaced',
+        exerciseTime: 0,
+        objectId: 'c',
+        objectType: 'cordon',
+        position: { x: 0, y: 0 },
+        rotation: 0,
+        length: 25,
+        visibility: 'everyone',
+      },
+    ]);
+    expect(findMapItem(withLength, { kind: 'situationObject', id: 'c' })).toMatchObject({
+      length: 25,
+      size: { width: 25, height: 0.3 },
+    });
+  });
+});

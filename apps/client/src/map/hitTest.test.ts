@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   hitTestHandle,
   hitTestItems,
+  lengthHandlePosition,
+  lengthTowards,
   resizeHandlePosition,
   rotationHandleOffset,
   rotationHandlePosition,
@@ -27,6 +29,7 @@ const fire = (id: string, x: number, y: number, radius: number): MapItem =>
 
 describe('hitTestItems', () => {
   // Einheit bei (0|0) liegt in der Fenstermitte (400|300).
+  // Ein HLF ist 8,5 × 2,5 m groß, bei 10 px/m also 85 × 25 px.
   const items = [unit('a', 0, 0)];
 
   it('trifft eine Einheit in der Mitte ihres Zeichens', () => {
@@ -34,11 +37,18 @@ describe('hitTestItems', () => {
   });
 
   it('trifft auch knapp neben dem Rand', () => {
-    expect(hitTestItems(items, camera, viewport, { x: 400 + 24, y: 300 })?.ref.id).toBe('a');
+    expect(hitTestItems(items, camera, viewport, { x: 400 + 45, y: 300 })?.ref.id).toBe('a');
   });
 
   it('trifft nichts weiter weg', () => {
-    expect(hitTestItems(items, camera, viewport, { x: 400 + 40, y: 300 })).toBeUndefined();
+    expect(hitTestItems(items, camera, viewport, { x: 400 + 50, y: 300 })).toBeUndefined();
+  });
+
+  it('wächst beim Hereinzoomen mit', () => {
+    const zoomedIn = { ...camera, scale: 20 };
+    expect(hitTestItems(items, zoomedIn, viewport, { x: 400 + 80, y: 300 })?.ref.id).toBe('a');
+    const zoomedOut = { ...camera, scale: 2 };
+    expect(hitTestItems(items, zoomedOut, viewport, { x: 400 + 20, y: 300 })).toBeUndefined();
   });
 
   it('wählt bei Überlappung das oben liegende Objekt', () => {
@@ -47,10 +57,10 @@ describe('hitTestItems', () => {
   });
 
   it('berücksichtigt die Drehung des Zeichens', () => {
-    // Um 90° gedreht steht das 44 × 26 px breite Zeichen hochkant.
+    // Um 90° gedreht steht das 85 × 25 px große Zeichen hochkant.
     const rotated = [unit('a', 0, 0, 90)];
-    expect(hitTestItems(rotated, camera, viewport, { x: 400, y: 300 + 24 })?.ref.id).toBe('a');
-    expect(hitTestItems(rotated, camera, viewport, { x: 400 + 24, y: 300 })).toBeUndefined();
+    expect(hitTestItems(rotated, camera, viewport, { x: 400, y: 300 + 45 })?.ref.id).toBe('a');
+    expect(hitTestItems(rotated, camera, viewport, { x: 400 + 45, y: 300 })).toBeUndefined();
   });
 
   describe('Fläche mit 5 m Radius (bei 10 px/m = 50 px)', () => {
@@ -83,22 +93,52 @@ describe('hitTestItems', () => {
 
 describe('Drehgriff', () => {
   const center = { x: 400, y: 300 };
-  const offset = rotationHandleOffset(unit('a', 0, 0).size.height);
+  const scale = camera.scale;
+  const offset = rotationHandleOffset(unit('a', 0, 0).size.height * scale);
 
   it('liegt ohne Drehung über dem Zeichen', () => {
-    expect(rotationHandlePosition(center, unit('a', 0, 0))).toEqual({ x: 400, y: 300 - offset });
+    expect(rotationHandlePosition(center, unit('a', 0, 0), scale)).toEqual({
+      x: 400,
+      y: 300 - offset,
+    });
   });
 
   it('wandert bei 90° nach rechts', () => {
-    const handle = rotationHandlePosition(center, unit('a', 0, 0, 90));
+    const handle = rotationHandlePosition(center, unit('a', 0, 0, 90), scale);
     expect(handle.x).toBeCloseTo(400 + offset);
     expect(handle.y).toBeCloseTo(300);
   });
 
   it('wird nur in seiner Nähe getroffen', () => {
-    const handle = rotationHandlePosition(center, unit('a', 0, 0));
+    const handle = rotationHandlePosition(center, unit('a', 0, 0), scale);
     expect(hitTestHandle(handle, { x: 403, y: 300 - offset })).toBe(true);
     expect(hitTestHandle(handle, center)).toBe(false);
+  });
+});
+
+describe('Längen-Griff', () => {
+  const center = { x: 400, y: 300 };
+  const cordon = (rotation: number) =>
+    situationObjectItem({
+      id: 'c',
+      objectType: 'cordon',
+      position: { x: 0, y: 0 },
+      rotation,
+      length: 10,
+      visibility: 'everyone',
+    });
+
+  it('liegt am rechten Ende und dreht sich mit', () => {
+    expect(lengthHandlePosition(center, cordon(0), 10)).toEqual({ x: 450, y: 300 });
+    const rotated = lengthHandlePosition(center, cordon(90), 10);
+    expect(rotated.x).toBeCloseTo(400);
+    expect(rotated.y).toBeCloseTo(350);
+  });
+
+  it('ergibt die doppelte Entfernung entlang der Achse als Länge', () => {
+    // 100 px rechts der Mitte bei 10 px/m = 10 m je Seite = 20 m lang; seitlicher Versatz zählt nicht.
+    expect(lengthTowards(center, 0, { x: 500, y: 330 }, 10)).toBeCloseTo(20);
+    expect(lengthTowards(center, 90, { x: 400, y: 375 }, 10)).toBeCloseTo(15);
   });
 });
 
@@ -121,7 +161,7 @@ describe('rotationTowards', () => {
   });
 
   it('passt zur Lage des Drehgriffs', () => {
-    const handle = rotationHandlePosition(center, unit('a', 0, 0, 135));
+    const handle = rotationHandlePosition(center, unit('a', 0, 0, 135), camera.scale);
     expect(rotationTowards(center, handle)).toBeCloseTo(135);
   });
 });

@@ -52,6 +52,11 @@ export function MapCanvas() {
           .getState()
           .execute({ type: 'ResizeSituationObject', objectId: ref.id, radius });
       },
+      onItemLengthEnd: (ref, length) => {
+        useGameStore
+          .getState()
+          .execute({ type: 'ChangeSituationObjectLength', objectId: ref.id, length });
+      },
     });
 
     // PixiJS startet asynchron. Wird die Komponente vorher wieder entfernt (passiert im

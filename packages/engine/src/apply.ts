@@ -56,6 +56,7 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
         position: event.position,
         rotation: event.rotation,
         ...(event.radius !== undefined && { radius: event.radius }),
+        ...(event.length !== undefined && { length: event.length }),
         visibility: event.visibility,
       });
 
@@ -67,6 +68,9 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
 
     case 'SituationObjectResized':
       return updateSituationObject(state, event.objectId, { radius: event.radius });
+
+    case 'SituationObjectLengthChanged':
+      return updateSituationObject(state, event.objectId, { length: event.length });
 
     case 'SituationObjectVisibilityChanged':
       return updateSituationObject(state, event.objectId, { visibility: event.visibility });

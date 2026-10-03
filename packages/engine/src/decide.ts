@@ -17,7 +17,8 @@ export type Rejection =
   | { readonly code: 'situation-object-not-found'; readonly objectId: SituationObjectId }
   | { readonly code: 'invalid-object-type' }
   | { readonly code: 'invalid-radius' }
-  /** Größe ändern geht nur bei Flächen, die schon einen Radius haben. */
+  | { readonly code: 'invalid-length' }
+  /** Radius bzw. Länge ändern geht nur bei Objekten, die schon einen Radius bzw. eine Länge haben. */
   | { readonly code: 'not-resizable'; readonly objectId: SituationObjectId }
   | { readonly code: 'invalid-visibility' };
 
@@ -92,8 +93,11 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
       if (!isFiniteVec2(command.position)) return reject({ code: 'invalid-position' });
       const rotation = command.rotation ?? 0;
       if (!Number.isFinite(rotation)) return reject({ code: 'invalid-rotation' });
-      if (command.radius !== undefined && !isValidRadius(command.radius)) {
+      if (command.radius !== undefined && !isPositive(command.radius)) {
         return reject({ code: 'invalid-radius' });
+      }
+      if (command.length !== undefined && !isPositive(command.length)) {
+        return reject({ code: 'invalid-length' });
       }
       const visibility = command.visibility ?? 'everyone';
       if (!visibilities.includes(visibility)) return reject({ code: 'invalid-visibility' });
@@ -106,6 +110,7 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
         rotation: normalizeRotation(rotation),
         // Nur übernehmen, wenn vorhanden – sonst stünde `radius: undefined` im Ereignis.
         ...(command.radius !== undefined && { radius: command.radius }),
+        ...(command.length !== undefined && { length: command.length }),
         visibility,
       });
     }
@@ -143,12 +148,27 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
         return reject({ code: 'situation-object-not-found', objectId: command.objectId });
       if (object.radius === undefined)
         return reject({ code: 'not-resizable', objectId: object.id });
-      if (!isValidRadius(command.radius)) return reject({ code: 'invalid-radius' });
+      if (!isPositive(command.radius)) return reject({ code: 'invalid-radius' });
       return accept({
         type: 'SituationObjectResized',
         exerciseTime,
         objectId: object.id,
         radius: command.radius,
+      });
+    }
+
+    case 'ChangeSituationObjectLength': {
+      const object = state.situationObjects[command.objectId];
+      if (!object)
+        return reject({ code: 'situation-object-not-found', objectId: command.objectId });
+      if (object.length === undefined)
+        return reject({ code: 'not-resizable', objectId: object.id });
+      if (!isPositive(command.length)) return reject({ code: 'invalid-length' });
+      return accept({
+        type: 'SituationObjectLengthChanged',
+        exerciseTime,
+        objectId: object.id,
+        length: command.length,
       });
     }
 
@@ -174,6 +194,6 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
   }
 }
 
-function isValidRadius(radius: number): boolean {
-  return Number.isFinite(radius) && radius > 0;
+function isPositive(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
 }
