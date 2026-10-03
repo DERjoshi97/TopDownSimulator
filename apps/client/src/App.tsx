@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ExerciseClock } from './clock/ExerciseClock';
+import { ExerciseFileMenu } from './files/ExerciseFileMenu';
 import { Logbook } from './logbook/Logbook';
 import { MapCanvas } from './map/MapCanvas';
 import { SelectionPanel } from './selection/SelectionPanel';
@@ -21,6 +22,7 @@ export function App() {
         >
           Tagebuch
         </button>
+        <ExerciseFileMenu />
       </header>
       <Toolbar />
       {/* Rechte Spalte: Auswahl oben, Tagebuch darunter – so überdecken sie sich nicht. */}

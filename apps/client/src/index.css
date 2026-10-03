@@ -458,3 +458,28 @@ body {
   padding: 10px 14px;
   color: #666;
 }
+
+.file-menu {
+  display: flex;
+  gap: 6px;
+  padding-left: 12px;
+  border-left: 1px solid var(--panel-border);
+}
+
+/* Kurze Rückmeldung nach Speichern oder Laden, unten mittig über der Karte. */
+.notice {
+  position: fixed;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: min(90vw, 560px);
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.notice--error {
+  background: var(--accent);
+}

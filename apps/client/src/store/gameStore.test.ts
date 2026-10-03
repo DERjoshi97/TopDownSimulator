@@ -48,6 +48,51 @@ describe('gameStore', () => {
     expect(store.getState().exerciseTime()).toBe(70_000);
   });
 
+  it('lädt eine gespeicherte Übung und hält die Uhr an', () => {
+    let clock = 0;
+    const store = createGameStore(undefined, () => clock);
+    store.getState().execute(placeHlf);
+
+    store.getState().load(
+      [
+        { type: 'ClockResumed', exerciseTime: 0 },
+        {
+          type: 'UnitPlaced',
+          exerciseTime: 120_000,
+          unitId: 'dlk-1',
+          unitType: 'DLK',
+          position: { x: 0, y: 0 },
+          rotation: 0,
+        },
+      ],
+      150_000,
+    );
+    clock += 60_000;
+
+    const { state, events, exerciseTime } = store.getState();
+    expect(Object.keys(state.units)).toEqual(['dlk-1']);
+    expect(state.clock.running).toBe(false);
+    // Gespeichert wurde bei laufender Uhr 30 s nach dem letzten Ereignis – dort wird angehalten.
+    expect(events.at(-1)).toEqual({ type: 'ClockPaused', exerciseTime: 150_000 });
+    expect(exerciseTime()).toBe(150_000);
+  });
+
+  it('setzt nach dem Laden mit der gespeicherten Zeit fort', () => {
+    let clock = 0;
+    const store = createGameStore(undefined, () => clock);
+    store.getState().load(
+      [
+        { type: 'ClockResumed', exerciseTime: 0 },
+        { type: 'ClockPaused', exerciseTime: 300_000 },
+      ],
+      300_000,
+    );
+
+    store.getState().execute({ type: 'ResumeClock' });
+    clock += 10_000;
+    expect(store.getState().exerciseTime()).toBe(310_000);
+  });
+
   it('benachrichtigt nur bei Erfolg', () => {
     const store = createGameStore();
     let notifications = 0;

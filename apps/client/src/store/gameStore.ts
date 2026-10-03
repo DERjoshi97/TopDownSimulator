@@ -18,6 +18,11 @@ interface GameStore {
   readonly exerciseTime: () => number;
   /** Einziger Weg, den Spielstand zu ändern: Befehl an die Engine geben. */
   readonly execute: (command: Command) => DecideResult;
+  /**
+   * Ersetzt die laufende Übung durch eine gespeicherte. Die Uhr ist danach immer angehalten,
+   * damit die Zeit nicht sofort weiterläuft, wenn mitten in der Übung gespeichert wurde.
+   */
+  readonly load: (events: readonly GameEvent[], exerciseTime: number) => void;
 }
 
 /**
@@ -26,7 +31,8 @@ interface GameStore {
  * und übersetzt die echte Uhrzeit in Übungszeit.
  * `now` ist austauschbar, damit Tests eine feste Uhr verwenden können.
  */
-export function createGameStore(game = new Game(), now: () => number = Date.now) {
+export function createGameStore(initialGame = new Game(), now: () => number = Date.now) {
+  let game = initialGame;
   const anchorAt = (exerciseTime: number): ClockAnchor => ({
     exerciseTime,
     wallTime: now(),
@@ -51,6 +57,11 @@ export function createGameStore(game = new Game(), now: () => number = Date.now)
         });
       }
       return result;
+    },
+    load: (events, exerciseTime) => {
+      game = new Game(events);
+      if (game.state.clock.running) game.execute({ type: 'PauseClock' }, exerciseTime);
+      set({ state: game.state, events: [...game.events], clock: anchorAt(exerciseTime) });
     },
   }));
 }

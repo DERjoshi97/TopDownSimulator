@@ -68,6 +68,8 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 | Uhr anhalten / fortsetzen | `PauseClock` / `ResumeClock` |
 | Zeitraffer (Faktor)       | `speed`                      |
 | Bezugspunkt der Uhr       | `ClockAnchor`                |
+| Übungsdatei               | `ExerciseFile`               |
+| Speichern / Laden         | `save` / `load`              |
 | Nachbesprechung           | `Debriefing`                 |
 | Karte                     | `Map`                        |
 | Präsentationsmodus/Beamer | `PresentationView`           |
