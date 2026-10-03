@@ -30,8 +30,13 @@ import {
 } from './symbols';
 
 export interface MapViewOptions {
-  /** Wird aufgerufen, wenn sich Ausschnitt oder Zoom ändern. */
-  onCameraChange?: (camera: Camera) => void;
+  /** Wird aufgerufen, wenn sich Ausschnitt, Zoom oder die Fenstergröße ändern. */
+  onCameraChange?: (camera: Camera, viewport: Viewport) => void;
+  /**
+   * `false` = nur anzeigen, keine Maus- und Mausradbedienung (z. B. auf dem Beamer).
+   * Den Ausschnitt setzt dann nur noch `setCamera`. Standard: `true`.
+   */
+  interactive?: boolean;
   /** Weltposition unter dem Mauszeiger, `undefined` wenn die Maus die Karte verlässt. */
   onCursorMove?: (world: Vec2 | undefined) => void;
   /** Klick auf eine freie Stelle der Karte (ohne Ziehen). */
@@ -143,18 +148,24 @@ export class MapView {
     this.#options = options;
     app.stage.addChild(this.#grid, this.#areaLayer, this.#symbolLayer, this.#selection);
     app.ticker.add(this.#render);
-    this.#removeListeners = this.#attachInput(app.canvas);
-    options.onCameraChange?.(this.#camera);
+    this.#removeListeners =
+      options.interactive === false ? () => {} : this.#attachInput(app.canvas);
+    options.onCameraChange?.(this.#camera, this.#viewport);
   }
 
   get camera(): Camera {
     return this.#camera;
   }
 
+  /** Größe des Kartenfensters in Pixeln. */
+  get viewport(): Viewport {
+    return this.#viewport;
+  }
+
   setCamera(camera: Camera): void {
     this.#camera = camera;
     this.#dirty = true;
-    this.#options.onCameraChange?.(camera);
+    this.#options.onCameraChange?.(camera, this.#viewport);
   }
 
   /** Übernimmt die Objekte aus dem Spielstand: legt neue Zeichen an und entfernt alte. */
@@ -216,6 +227,7 @@ export class MapView {
       viewport.width !== this.#lastViewport.width || viewport.height !== this.#lastViewport.height;
     if (!this.#dirty && !resized) return;
     this.#lastViewport = viewport;
+    if (resized) this.#options.onCameraChange?.(this.#camera, viewport);
     this.#dirty = false;
     this.#drawGrid(viewport);
     this.#positionItems(viewport);
