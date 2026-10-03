@@ -1,5 +1,13 @@
 import type { Vec2 } from './geometry';
-import type { BuildingId, SituationObjectId, UnitId, Visibility } from './state';
+import type {
+  BuildingId,
+  MapFeature,
+  MapFeatureChanges,
+  MapFeatureId,
+  SituationObjectId,
+  UnitId,
+  Visibility,
+} from './state';
 
 // Befehle beschreiben, was jemand tun *möchte*. Die Engine prüft sie in `decide`
 // und macht daraus Ereignisse – oder lehnt sie ab.
@@ -110,6 +118,29 @@ export interface RemoveBuilding {
   readonly buildingId: BuildingId;
 }
 
+export interface AddMapFeature {
+  readonly type: 'AddMapFeature';
+  readonly feature: MapFeature;
+}
+
+export interface MoveMapFeature {
+  readonly type: 'MoveMapFeature';
+  readonly featureId: MapFeatureId;
+  /** Verschiebung in Metern – bei Straßen wandert der ganze Verlauf mit. */
+  readonly offset: Vec2;
+}
+
+export interface ChangeMapFeature {
+  readonly type: 'ChangeMapFeature';
+  readonly featureId: MapFeatureId;
+  readonly changes: MapFeatureChanges;
+}
+
+export interface RemoveMapFeature {
+  readonly type: 'RemoveMapFeature';
+  readonly featureId: MapFeatureId;
+}
+
 export interface PauseClock {
   readonly type: 'PauseClock';
 }
@@ -139,6 +170,10 @@ export type Command =
   | MoveBuilding
   | ChangeBuilding
   | RemoveBuilding
+  | AddMapFeature
+  | MoveMapFeature
+  | ChangeMapFeature
+  | RemoveMapFeature
   | PauseClock
   | ResumeClock
   | SetClockSpeed;

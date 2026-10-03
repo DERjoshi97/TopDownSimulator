@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
-import { polygonArea, visibilities, type Building, type Visibility } from '@tds/engine';
+import {
+  hydrantTypes,
+  pathLength,
+  polygonArea,
+  visibilities,
+  type Building,
+  type MapFeature,
+  type MapFeatureChanges,
+  type Visibility,
+} from '@tds/engine';
 import { ROTATION_STEP } from '../map/hitTest';
-import { removeCommand, rotateCommand } from '../map/itemCommands';
+import { DEFAULT_LABEL_TEXT, removeCommand, rotateCommand } from '../map/itemCommands';
 import { findMapItem, isArea, typeName, type MapItemRef } from '../map/mapItems';
 import { useGameStore } from '../store/gameStore';
 import { useToolStore } from '../store/toolStore';
@@ -32,6 +41,7 @@ export function SelectionPanel() {
       ? state.situationObjects[selection.id]?.visibility
       : undefined;
   const building = selection?.kind === 'building' ? state.buildings[selection.id] : undefined;
+  const feature = selection?.kind === 'mapFeature' ? state.mapFeatures[selection.id] : undefined;
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -66,7 +76,7 @@ export function SelectionPanel() {
           <p className="selection-panel-name">{name}</p>
         </>
       ) : (
-        <h2>{building?.name ?? name}</h2>
+        <h2>{building?.name ?? (feature?.kind === 'road' ? feature.name : undefined) ?? name}</h2>
       )}
 
       {item.rotatable && (
@@ -137,6 +147,7 @@ export function SelectionPanel() {
 
       {/* `key`: Bei einem anderen Gebäude beginnt das Namensfeld neu. */}
       {building && <BuildingFields key={building.id} building={building} />}
+      {feature && <MapFeatureFields key={feature.id} feature={feature} />}
 
       {visibility && (
         <fieldset className="selection-panel-visibility">
@@ -244,6 +255,107 @@ function BuildingFields({ building }: { building: Building }) {
         Grundfläche {Math.round(polygonArea(building.outline)).toLocaleString('de-DE')} m²
       </p>
     </>
+  );
+}
+
+/** Felder für Straße, Hydrant oder Beschriftung. */
+function MapFeatureFields({ feature }: { feature: MapFeature }) {
+  const change = (changes: MapFeatureChanges) =>
+    useGameStore.getState().execute({ type: 'ChangeMapFeature', featureId: feature.id, changes });
+
+  switch (feature.kind) {
+    case 'road':
+      return (
+        <>
+          <TextField
+            label="Name"
+            value={feature.name ?? ''}
+            placeholder="z. B. Hauptstraße"
+            maxLength={60}
+            onCommit={(name) => change({ name })}
+          />
+          <div className="selection-panel-row">
+            <span>{formatMeters(feature.width)} breit</span>
+            <button
+              type="button"
+              aria-label="Schmaler"
+              disabled={feature.width <= 1}
+              onClick={() => change({ width: Math.max(1, feature.width - 1) })}
+            >
+              −
+            </button>
+            <button
+              type="button"
+              aria-label="Breiter"
+              onClick={() => change({ width: Math.min(50, feature.width + 1) })}
+            >
+              +
+            </button>
+          </div>
+          <p className="selection-panel-info">Länge {formatMeters(pathLength(feature.path))}</p>
+        </>
+      );
+    case 'hydrant':
+      return (
+        <fieldset className="selection-panel-visibility">
+          <legend>Bauart</legend>
+          {hydrantTypes.map((type) => (
+            <label key={type}>
+              <input
+                type="radio"
+                name="hydrantType"
+                checked={feature.hydrantType === type}
+                onChange={() => change({ hydrantType: type })}
+              />
+              {type === 'underground' ? 'Unterflur' : 'Überflur'}
+            </label>
+          ))}
+        </fieldset>
+      );
+    case 'label':
+      return (
+        <TextField
+          label="Text"
+          value={feature.text}
+          maxLength={80}
+          // Frisch gesetzte Beschriftung: Text gleich zum Überschreiben markieren.
+          autoSelect={feature.text === DEFAULT_LABEL_TEXT}
+          onCommit={(text) => {
+            if (text.trim()) change({ text });
+          }}
+        />
+      );
+  }
+}
+
+/** Textfeld, das erst beim Verlassen oder mit Enter übernommen wird – ein Befehl statt einer pro Taste. */
+function TextField(props: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  maxLength: number;
+  autoSelect?: boolean;
+  onCommit: (value: string) => void;
+}) {
+  const [value, setValue] = useState(props.value);
+  return (
+    <label className="selection-panel-field">
+      <span>{props.label}</span>
+      <input
+        type="text"
+        value={value}
+        maxLength={props.maxLength}
+        placeholder={props.placeholder}
+        // Nur direkt nach dem Setzen einer Beschriftung, damit man gleich lostippen kann.
+        autoFocus={props.autoSelect}
+        onFocus={(e) => props.autoSelect && e.currentTarget.select()}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => value.trim() !== props.value && props.onCommit(value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') e.currentTarget.blur();
+        }}
+      />
+    </label>
   );
 }
 

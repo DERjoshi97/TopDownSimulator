@@ -2,7 +2,15 @@ import type { Command } from './commands';
 import type { Vec2 } from './geometry';
 import type { GameEvent } from './events';
 import { isFiniteVec2, normalizeRotation, polygonArea } from './geometry';
-import { visibilities, type BuildingId, type GameState, type SituationObjectId } from './state';
+import { changeMapFeature, invalidMapFeatureField } from './mapFeatures';
+import {
+  visibilities,
+  type BuildingId,
+  type GameState,
+  type MapFeature,
+  type MapFeatureId,
+  type SituationObjectId,
+} from './state';
 
 /**
  * Grund, warum ein Befehl abgelehnt wurde. Bewusst als Code und nicht als Text:
@@ -28,6 +36,10 @@ export type Rejection =
   | { readonly code: 'invalid-outline' }
   | { readonly code: 'invalid-storeys' }
   | { readonly code: 'invalid-name' }
+  | { readonly code: 'map-feature-already-exists'; readonly featureId: MapFeatureId }
+  | { readonly code: 'map-feature-not-found'; readonly featureId: MapFeatureId }
+  /** Ein Feld des Kartenelements ist ungültig oder passt nicht zu seiner Art. */
+  | { readonly code: 'invalid-map-feature'; readonly field: string }
   | { readonly code: 'clock-already-paused' }
   | { readonly code: 'clock-already-running' }
   | { readonly code: 'invalid-speed' };
@@ -257,6 +269,44 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
       }
       return accept({ type: 'BuildingRemoved', exerciseTime, buildingId: command.buildingId });
 
+    case 'AddMapFeature': {
+      const { feature } = command;
+      if (state.mapFeatures[feature.id]) {
+        return reject({ code: 'map-feature-already-exists', featureId: feature.id });
+      }
+      const field = invalidMapFeatureField(feature);
+      if (field) return reject({ code: 'invalid-map-feature', field });
+      return accept({ type: 'MapFeatureAdded', exerciseTime, feature: normalizeFeature(feature) });
+    }
+
+    case 'MoveMapFeature': {
+      const feature = state.mapFeatures[command.featureId];
+      if (!feature) return reject({ code: 'map-feature-not-found', featureId: command.featureId });
+      if (!isFiniteVec2(command.offset)) return reject({ code: 'invalid-position' });
+      return accept({
+        type: 'MapFeatureMoved',
+        exerciseTime,
+        featureId: feature.id,
+        offset: command.offset,
+      });
+    }
+
+    case 'ChangeMapFeature': {
+      const feature = state.mapFeatures[command.featureId];
+      if (!feature) return reject({ code: 'map-feature-not-found', featureId: command.featureId });
+      const changed = changeMapFeature(feature, command.changes);
+      if ('invalidField' in changed) {
+        return reject({ code: 'invalid-map-feature', field: changed.invalidField });
+      }
+      return accept({ type: 'MapFeatureChanged', exerciseTime, feature: changed });
+    }
+
+    case 'RemoveMapFeature':
+      if (!state.mapFeatures[command.featureId]) {
+        return reject({ code: 'map-feature-not-found', featureId: command.featureId });
+      }
+      return accept({ type: 'MapFeatureRemoved', exerciseTime, featureId: command.featureId });
+
     case 'PauseClock':
       if (!state.clock.running) return reject({ code: 'clock-already-paused' });
       return accept({ type: 'ClockPaused', exerciseTime });
@@ -270,6 +320,21 @@ export function decide(state: GameState, command: Command, exerciseTime: number)
         return reject({ code: 'invalid-speed' });
       }
       return accept({ type: 'ClockSpeedChanged', exerciseTime, speed: command.speed });
+  }
+}
+
+/** Entfernt Leerzeichen am Rand von Namen und Texten, leere Straßennamen fallen weg. */
+function normalizeFeature(feature: MapFeature): MapFeature {
+  switch (feature.kind) {
+    case 'road': {
+      const { name, ...rest } = feature;
+      const trimmed = name?.trim();
+      return { ...rest, ...(trimmed && { name: trimmed }) };
+    }
+    case 'label':
+      return { ...feature, text: feature.text.trim() };
+    case 'hydrant':
+      return feature;
   }
 }
 

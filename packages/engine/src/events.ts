@@ -1,5 +1,12 @@
 import type { Vec2 } from './geometry';
-import type { BuildingId, SituationObjectId, UnitId, Visibility } from './state';
+import type {
+  BuildingId,
+  MapFeature,
+  MapFeatureId,
+  SituationObjectId,
+  UnitId,
+  Visibility,
+} from './state';
 
 // Ereignisse beschreiben, was tatsächlich *passiert ist* (daher Vergangenheitsform).
 // Sie sind bereits geprüft und werden nie verändert oder gelöscht –
@@ -113,6 +120,28 @@ export interface BuildingRemoved extends BaseEvent {
   readonly buildingId: BuildingId;
 }
 
+export interface MapFeatureAdded extends BaseEvent {
+  readonly type: 'MapFeatureAdded';
+  readonly feature: MapFeature;
+}
+
+export interface MapFeatureMoved extends BaseEvent {
+  readonly type: 'MapFeatureMoved';
+  readonly featureId: MapFeatureId;
+  readonly offset: Vec2;
+}
+
+/** Enthält das ganze geänderte Element – so muss beim Anwenden nichts zusammengesetzt werden. */
+export interface MapFeatureChanged extends BaseEvent {
+  readonly type: 'MapFeatureChanged';
+  readonly feature: MapFeature;
+}
+
+export interface MapFeatureRemoved extends BaseEvent {
+  readonly type: 'MapFeatureRemoved';
+  readonly featureId: MapFeatureId;
+}
+
 export interface ClockPaused extends BaseEvent {
   readonly type: 'ClockPaused';
 }
@@ -142,6 +171,10 @@ export type GameEvent =
   | BuildingMoved
   | BuildingChanged
   | BuildingRemoved
+  | MapFeatureAdded
+  | MapFeatureMoved
+  | MapFeatureChanged
+  | MapFeatureRemoved
   | ClockPaused
   | ClockResumed
   | ClockSpeedChanged;

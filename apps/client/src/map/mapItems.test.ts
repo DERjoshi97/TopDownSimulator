@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { replay } from '@tds/engine';
-import { findMapItem, mapItemsFromState, typeName } from './mapItems';
+import { findMapItem, mapItemsFromState, pointAlongPath, typeName } from './mapItems';
 
 const state = replay([
   {
@@ -91,5 +91,21 @@ describe('maßstäbliche Größen', () => {
       length: 25,
       size: { width: 25, height: 0.3 },
     });
+  });
+});
+
+describe('pointAlongPath', () => {
+  const path = [
+    { x: 0, y: 0 },
+    { x: 30, y: 0 },
+    { x: 30, y: 40 },
+  ];
+  it('findet die Mitte eines geknickten Verlaufs', () => {
+    // Gesamtlänge 70 m, die Mitte liegt 35 m weit – also 5 m hinter dem Knick.
+    expect(pointAlongPath(path, 0.5)).toEqual({ x: 30, y: 5 });
+  });
+  it('liefert Anfang und Ende', () => {
+    expect(pointAlongPath(path, 0)).toEqual({ x: 0, y: 0 });
+    expect(pointAlongPath(path, 1)).toEqual({ x: 30, y: 40 });
   });
 });

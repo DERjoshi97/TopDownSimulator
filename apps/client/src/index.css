@@ -433,10 +433,15 @@ body {
 }
 
 .logbook li {
+  box-sizing: border-box;
   padding: 3px 14px;
 }
 
 .logbook li > button {
+  /* Über den Innenabstand der Zeile hinaus, damit die Hover-Fläche die ganze Breite füllt –
+     aber ohne über das Panel hinauszuragen. */
+  box-sizing: border-box;
+  width: calc(100% + 28px);
   margin: -3px -14px;
   padding: 3px 14px;
   background: none;
@@ -559,4 +564,30 @@ body {
 .selection-panel-info {
   margin: 0;
   color: #666;
+}
+
+.swatch--road {
+  height: 6px;
+  border-radius: 0;
+  background: #c9c5bd;
+  border-color: #8f8a80;
+}
+
+.swatch--hydrant {
+  background: #fff;
+  border: 3px solid #c8102e;
+}
+
+.swatch--label {
+  width: auto;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  font-weight: 700;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.swatch--label::before {
+  content: 'Aa';
 }

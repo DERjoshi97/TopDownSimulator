@@ -1,9 +1,11 @@
 import type { GameEvent } from './events';
 import { translatePoints } from './geometry';
+import { translateMapFeature } from './mapFeatures';
 import {
   initialState,
   type Building,
   type GameState,
+  type MapFeature,
   type SituationObject,
   type SituationObjectId,
 } from './state';
@@ -118,6 +120,21 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
       return { ...state, buildings };
     }
 
+    case 'MapFeatureAdded':
+    case 'MapFeatureChanged':
+      return withMapFeature(state, event.feature);
+
+    case 'MapFeatureMoved': {
+      const feature = state.mapFeatures[event.featureId];
+      return feature ? withMapFeature(state, translateMapFeature(feature, event.offset)) : state;
+    }
+
+    case 'MapFeatureRemoved': {
+      const mapFeatures = { ...state.mapFeatures };
+      delete mapFeatures[event.featureId];
+      return { ...state, mapFeatures };
+    }
+
     case 'ClockPaused':
       return { ...state, clock: { ...state.clock, running: false } };
 
@@ -127,6 +144,10 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
     case 'ClockSpeedChanged':
       return { ...state, clock: { ...state.clock, speed: event.speed } };
   }
+}
+
+function withMapFeature(state: GameState, feature: MapFeature): GameState {
+  return { ...state, mapFeatures: { ...state.mapFeatures, [feature.id]: feature } };
 }
 
 function withBuilding(state: GameState, building: Building): GameState {

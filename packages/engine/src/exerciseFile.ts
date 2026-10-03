@@ -1,5 +1,6 @@
 import type { GameEvent } from './events';
-import { visibilities } from './state';
+import { invalidMapFeatureField } from './mapFeatures';
+import { visibilities, type MapFeature } from './state';
 
 // Eine Übung wird als Liste ihrer Ereignisse gespeichert, nicht als Schnappschuss des Zustands:
 // So bleiben Einsatztagebuch und Zeitverlauf erhalten, und der Zustand lässt sich jederzeit
@@ -106,6 +107,8 @@ const isNumber: FieldCheck = (v) => typeof v === 'number' && Number.isFinite(v);
 const isPositive: FieldCheck = (v) => isNumber(v) && (v as number) > 0;
 const isVec2: FieldCheck = (v) => isRecord(v) && isNumber(v.x) && isNumber(v.y);
 const isOutline: FieldCheck = (v) => Array.isArray(v) && v.length >= 3 && v.every(isVec2);
+const isMapFeature: FieldCheck = (v) =>
+  isRecord(v) && invalidMapFeatureField(v as unknown as MapFeature) === undefined;
 const isVisibility: FieldCheck = (v) => visibilities.includes(v as never);
 const optional =
   (check: FieldCheck): FieldCheck =>
@@ -145,6 +148,10 @@ const EVENT_FIELDS = {
   BuildingMoved: { buildingId: isString, offset: isVec2 },
   BuildingChanged: { buildingId: isString, storeys: isPositive, name: optional(isString) },
   BuildingRemoved: { buildingId: isString },
+  MapFeatureAdded: { feature: isMapFeature },
+  MapFeatureMoved: { featureId: isString, offset: isVec2 },
+  MapFeatureChanged: { feature: isMapFeature },
+  MapFeatureRemoved: { featureId: isString },
   ClockPaused: {},
   ClockResumed: {},
   ClockSpeedChanged: { speed: isPositive },

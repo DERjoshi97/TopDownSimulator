@@ -7,7 +7,9 @@ import type { MapItemRef } from '../map/mapItems';
  */
 export type PlacementTool =
   | { readonly kind: 'unit' | 'situationObject'; readonly typeId: string }
-  | { readonly kind: 'building'; readonly typeId: 'rectangle' | 'polygon' };
+  | { readonly kind: 'building'; readonly typeId: 'rectangle' | 'polygon' }
+  /** Straße wird gezeichnet, Hydrant und Beschriftung werden per Klick gesetzt. */
+  | { readonly kind: 'mapFeature'; readonly typeId: 'road' | 'hydrant' | 'label' };
 
 interface ToolStore {
   /** Aktives Platzier-Werkzeug. `undefined` = kein Werkzeug. */

@@ -10,7 +10,13 @@ import {
   rotationHandlePosition,
   rotationTowards,
 } from './hitTest';
-import { buildingItem, situationObjectItem, unitItem, type MapItem } from './mapItems';
+import {
+  buildingItem,
+  mapFeatureItem,
+  situationObjectItem,
+  unitItem,
+  type MapItem,
+} from './mapItems';
 
 const viewport = { width: 800, height: 600 };
 const camera = { center: { x: 0, y: 0 }, scale: 10 };
@@ -214,5 +220,38 @@ describe('pointInPolygon', () => {
   it('unterscheidet innen und außen', () => {
     expect(pointInPolygon({ x: 5, y: 5 }, square)).toBe(true);
     expect(pointInPolygon({ x: 15, y: 5 }, square)).toBe(false);
+  });
+});
+
+describe('Straßen und Beschriftungen', () => {
+  // 6 m breite Straße von (0|0) nach (40|0): bei 10 px/m 60 px breit.
+  const road = mapFeatureItem({
+    kind: 'road',
+    id: 'r',
+    path: [
+      { x: 0, y: 0 },
+      { x: 40, y: 0 },
+    ],
+    width: 6,
+  });
+  const label = mapFeatureItem({
+    kind: 'label',
+    id: 'l',
+    position: { x: -20, y: 0 },
+    text: 'Eingang',
+  });
+  const hit = (items: MapItem[], x: number, y: number) =>
+    hitTestItems(items, camera, viewport, { x, y })?.ref.id;
+
+  it('trifft Straßen innerhalb der Fahrbahnbreite', () => {
+    expect(hit([road], 600, 300 + 28)).toBe('r');
+    expect(hit([road], 600, 300 + 40)).toBeUndefined();
+  });
+
+  it('trifft Beschriftungen in ihrer festen Bildschirmgröße – unabhängig vom Zoom', () => {
+    // Beschriftung bei Weltpunkt (-20|0) = Bildschirm (200|300).
+    expect(hit([label], 220, 305)).toBe('l');
+    const zoomedOut = { ...camera, scale: 1 }; // jetzt bei (380|300)
+    expect(hitTestItems([label], zoomedOut, viewport, { x: 400, y: 305 })?.ref.id).toBe('l');
   });
 });

@@ -55,9 +55,31 @@ const SELECTION_PADDING = 6;
 export function createItemSymbol(item: MapItem): Container {
   const width = item.size.width * SYMBOL_PX_PER_METER;
   const height = item.size.height * SYMBOL_PX_PER_METER;
-  return item.ref.kind === 'unit'
-    ? createUnitSymbol(item.symbolType, width, height)
-    : createSituationSymbol(item.symbolType, width, height);
+  switch (item.ref.kind) {
+    case 'unit':
+      return createUnitSymbol(item.symbolType, width, height);
+    case 'mapFeature':
+      return createHydrantSymbol(item.symbolType === 'hydrant-above-ground', width);
+    default:
+      return createSituationSymbol(item.symbolType, width, height);
+  }
+}
+
+/**
+ * Hydrant, angelehnt an die Hydrantenschilder: Überflurhydrant rot gefüllt mit weißem „Ü“,
+ * Unterflurhydrant weiß mit rotem Ring und rotem „U“.
+ */
+function createHydrantSymbol(aboveGround: boolean, size: number): Container {
+  const radius = size / 2;
+  const g = new Graphics().circle(0, 0, radius);
+  if (aboveGround) g.fill(0xc8102e).stroke({ color: OUTLINE, width: size * 0.06 });
+  else g.fill(0xffffff).stroke({ color: 0xc8102e, width: size * 0.12 });
+  const symbol = new Container();
+  symbol.addChild(
+    g,
+    label(aboveGround ? 'Ü' : 'U', size * 0.55, aboveGround ? 0xffffff : 0xc8102e),
+  );
+  return symbol;
 }
 
 function createUnitSymbol(unitType: string, width: number, height: number): Container {
@@ -296,6 +318,73 @@ export function createCaption(): Text {
       fontWeight: '600',
       fill: 0x3a3732,
       align: 'center',
+    },
+  });
+  t.anchor.set(0.5);
+  return t;
+}
+
+const ROAD_FILL = 0xc9c5bd;
+const ROAD_EDGE = 0x8f8a80;
+
+/**
+ * Zeichnet eine Straße in Bildschirmpixeln: dunkler Rand, darüber die hellere Fahrbahn.
+ * Neu gezeichnet bei jeder Änderung von Zoom oder Verlauf.
+ */
+export function drawRoad(g: Graphics, path: readonly Vec2[], widthPx: number): void {
+  g.clear();
+  if (path.length < 2) return;
+  const trace = () => {
+    g.moveTo(path[0]!.x, path[0]!.y);
+    for (const p of path.slice(1)) g.lineTo(p.x, p.y);
+  };
+  trace();
+  g.stroke({ color: ROAD_EDGE, width: widthPx + 2, cap: 'round', join: 'round' });
+  trace();
+  g.stroke({ color: ROAD_FILL, width: Math.max(1, widthPx), cap: 'round', join: 'round' });
+}
+
+/**
+ * Auswahlmarkierung einer Straße: leichter blauer Saum über der Fahrbahn, die Mittellinie und
+ * Punkte am Verlauf. Bewusst durchscheinend, damit Hydranten auf der Straße sichtbar bleiben.
+ */
+export function drawPathSelection(g: Graphics, path: readonly Vec2[], widthPx: number): void {
+  g.clear();
+  if (path.length < 2) return;
+  const trace = () => {
+    g.moveTo(path[0]!.x, path[0]!.y);
+    for (const p of path.slice(1)) g.lineTo(p.x, p.y);
+  };
+  trace();
+  g.stroke({
+    color: SELECTION_COLOR,
+    width: widthPx + 6,
+    alpha: 0.15,
+    cap: 'round',
+    join: 'round',
+  });
+  trace();
+  g.stroke({ color: SELECTION_COLOR, width: 2, join: 'round' });
+  for (const p of path) g.circle(p.x, p.y, 3.5).fill(SELECTION_COLOR);
+}
+
+/** Auswahlrahmen um ein Objekt mit fester Bildschirmgröße, z. B. eine Beschriftung. */
+export function drawScreenFrame(g: Graphics, width: number, height: number): void {
+  g.clear()
+    .rect(-width / 2 - 3, -height / 2 - 3, width + 6, height + 6)
+    .stroke({ color: SELECTION_COLOR, width: 2 });
+}
+
+/** Freie Beschriftung auf der Karte: dunkle Schrift mit hellem Rand, damit sie überall lesbar ist. */
+export function createMapLabel(): Text {
+  const t = new Text({
+    text: '',
+    style: {
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: 13,
+      fontWeight: '600',
+      fill: 0x1a1a1a,
+      stroke: { color: 0xffffff, width: 4, join: 'round' },
     },
   });
   t.anchor.set(0.5);

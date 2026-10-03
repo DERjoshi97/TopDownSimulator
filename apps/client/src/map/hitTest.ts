@@ -32,6 +32,22 @@ export function hitTestItems(
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i]!;
     const center = worldToScreen(camera, viewport, item.position);
+    if (item.path) {
+      const path = item.path.map((p) => worldToScreen(camera, viewport, p));
+      const halfWidth = ((item.pathWidth ?? 0) * camera.scale) / 2;
+      if (distanceToPath(screenPoint, path) <= halfWidth + HIT_MARGIN) return item;
+      continue;
+    }
+    if (item.screenSize) {
+      const center = worldToScreen(camera, viewport, item.position);
+      if (
+        Math.abs(screenPoint.x - center.x) <= item.screenSize.width / 2 &&
+        Math.abs(screenPoint.y - center.y) <= item.screenSize.height / 2
+      ) {
+        return item;
+      }
+      continue;
+    }
     if (item.outline) {
       const outline = item.outline.map((p) => worldToScreen(camera, viewport, p));
       if (
@@ -141,6 +157,15 @@ export function pointInPolygon(point: Vec2, polygon: readonly Vec2[]): boolean {
     }
   }
   return inside;
+}
+
+/** Kürzester Abstand von `point` zu einem offenen Linienzug (z. B. Straßenmitte). */
+export function distanceToPath(point: Vec2, path: readonly Vec2[]): number {
+  let best = Infinity;
+  for (let i = 1; i < path.length; i++) {
+    best = Math.min(best, distanceToSegment(point, path[i - 1]!, path[i]!));
+  }
+  return best;
 }
 
 /** Kürzester Abstand von `point` zum Rand des Polygons. */

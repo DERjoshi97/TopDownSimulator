@@ -25,16 +25,20 @@ import {
   SYMBOL_PX_PER_METER,
   createCaption,
   createItemSymbol,
+  createMapLabel,
   drawArea,
   drawBuilding,
   drawBuildingSelection,
   drawLengthSymbol,
+  drawPathSelection,
+  drawRoad,
+  drawScreenFrame,
   drawSelection,
   drawShapePreview,
 } from './symbols';
 
 /** Zeichenwerkzeug für Gebäude: Rechteck aufziehen oder Polygon Punkt für Punkt setzen. */
-export type DrawMode = 'rectangle' | 'polygon';
+export type DrawMode = 'rectangle' | 'polygon' | 'polyline';
 
 export interface MapViewOptions {
   /** Wird aufgerufen, wenn sich Ausschnitt, Zoom oder die Fenstergröße ändern. */
@@ -53,7 +57,7 @@ export interface MapViewOptions {
   /** Ein Objekt wurde mit der Maus von `from` an eine neue Position gezogen. */
   onItemMoveEnd?: (ref: MapItemRef, position: Vec2, from: Vec2) => void;
   /** Mit dem Zeichenwerkzeug wurde ein Grundriss fertig gezeichnet (Eckpunkte in Metern). */
-  onShapeDrawn?: (outline: Vec2[]) => void;
+  onShapeDrawn?: (points: Vec2[], mode: DrawMode) => void;
   /** Ein Objekt wurde am Drehgriff gedreht. */
   onItemRotateEnd?: (ref: MapItemRef, rotation: number) => void;
   /** Eine Fläche wurde am Größen-Griff auf einen neuen Radius in Metern gezogen. */
@@ -126,6 +130,10 @@ interface ItemDisplay {
   /** Bei Gebäuden: Grundriss (in Bildschirmpixeln gezeichnet) und Beschriftung. */
   readonly outlineGraphic?: Graphics;
   readonly caption?: Text;
+  /** Bei Straßen: Fahrbahn, in Bildschirmpixeln gezeichnet. */
+  readonly pathGraphic?: Graphics;
+  /** Typ, mit dem das Zeichen erzeugt wurde – ändert er sich (z. B. Hydrantenart), neu erzeugen. */
+  readonly symbolType: string;
 }
 
 /**
@@ -139,6 +147,8 @@ export class MapView {
   readonly #grid = new Graphics();
   /** Gebäude liegen ganz unten, darüber Flächen, darüber alle Zeichen. */
   readonly #buildingLayer = new Container();
+  /** Straßen liegen unter den Gebäuden. */
+  readonly #roadLayer = new Container();
   /** Flächen liegen unter allen Zeichen, damit ein Feuer kein Fahrzeug verdeckt. */
   readonly #areaLayer = new Container();
   readonly #symbolLayer = new Container();
@@ -146,6 +156,12 @@ export class MapView {
   /** Vorschau beim Zeichnen eines Gebäudes. */
   readonly #preview = new Graphics();
   #drawMode: DrawMode | undefined;
+  /**
+   * Ist ein Werkzeug zum Platzieren per Klick aktiv? Dann gelten Straßen und Gebäude als
+   * Untergrund – ein Hydrant auf der Straße oder ein Trupp im Gebäude soll gesetzt werden,
+   * statt Straße oder Gebäude auszuwählen.
+   */
+  #placing = false;
   /** Bereits gesetzte Eckpunkte beim Polygon-Zeichnen, in Metern. */
   #polygonPoints: Vec2[] = [];
   /** Letzte Mausposition in Metern – für die Linie zum nächsten Eckpunkt. */
@@ -181,6 +197,7 @@ export class MapView {
     this.#options = options;
     app.stage.addChild(
       this.#grid,
+      this.#roadLayer,
       this.#buildingLayer,
       this.#areaLayer,
       this.#symbolLayer,
@@ -211,13 +228,15 @@ export class MapView {
   /** Übernimmt die Objekte aus dem Spielstand: legt neue Zeichen an und entfernt alte. */
   setItems(items: readonly MapItem[]): void {
     this.#items = items;
-    const keys = new Set(items.map((item) => refKey(item.ref)));
 
+    const typeByKey = new Map(items.map((item) => [refKey(item.ref), item.symbolType]));
     for (const [key, display] of this.#displays) {
-      if (!keys.has(key)) {
+      // Entfernt – oder anderer Typ (z. B. Hydrant umgestellt): dann gleich neu erzeugen.
+      if (typeByKey.get(key) !== display.symbolType) {
         display.symbol.destroy({ children: true });
         display.area?.destroy();
         display.outlineGraphic?.destroy();
+        display.pathGraphic?.destroy();
         this.#displays.delete(key);
       }
     }
@@ -226,7 +245,10 @@ export class MapView {
       if (this.#displays.has(key)) continue;
       const display = createDisplay(item);
       this.#displays.set(key, display);
-      if (display.outlineGraphic) {
+      if (display.pathGraphic) {
+        this.#roadLayer.addChild(display.pathGraphic);
+        this.#symbolLayer.addChildAt(display.symbol, 0);
+      } else if (display.outlineGraphic) {
         this.#buildingLayer.addChild(display.outlineGraphic);
         // Beschriftungen über den Flächen, damit ein Feuer den Gebäudenamen nicht verdeckt.
         this.#symbolLayer.addChildAt(display.symbol, 0);
@@ -249,6 +271,11 @@ export class MapView {
     this.#dirty = true;
   }
 
+  /** Meldet, ob gerade ein Werkzeug zum Platzieren per Klick aktiv ist (siehe `#placing`). */
+  setPlacing(placing: boolean): void {
+    this.#placing = placing;
+  }
+
   /**
    * Schaltet das Zeichenwerkzeug für Gebäude ein oder aus. Solange es aktiv ist, lassen sich
    * keine Objekte auswählen; Karte verschieben und zoomen geht weiter.
@@ -260,13 +287,18 @@ export class MapView {
     this.#dirty = true;
   }
 
-  /** Schließt das Polygon ab (z. B. mit Enter). Mit weniger als drei Punkten passiert nichts. */
+  /**
+   * Schließt das Polygon bzw. den Linienzug ab (z. B. mit Enter). Ein Polygon braucht mindestens
+   * drei, ein Linienzug mindestens zwei Punkte – sonst passiert nichts.
+   */
   finishPolygon(): void {
-    const points = withoutDuplicates(this.#polygonPoints);
-    if (points.length < 3) return;
+    const mode = this.#drawMode;
+    if (mode !== 'polygon' && mode !== 'polyline') return;
+    const points = withoutDuplicates(this.#polygonPoints, mode === 'polygon');
+    if (points.length < (mode === 'polygon' ? 3 : 2)) return;
     this.#polygonPoints = [];
     this.#dirty = true;
-    this.#options.onShapeDrawn?.(points);
+    this.#options.onShapeDrawn?.(points, mode);
   }
 
   /** Nimmt den zuletzt gesetzten Eckpunkt zurück (z. B. mit ⌫). */
@@ -324,7 +356,7 @@ export class MapView {
         undefined,
         false,
       );
-    } else if (this.#drawMode === 'polygon' && this.#polygonPoints.length > 0) {
+    } else if (this.#isPointDrawing() && this.#polygonPoints.length > 0) {
       const points = this.#polygonPoints.map(toScreen);
       const cursor = this.#cursorWorld && toScreen(this.#cursorWorld);
       drawShapePreview(this.#preview, points, cursor, this.#canClosePolygonAt(cursor));
@@ -333,9 +365,15 @@ export class MapView {
     }
   }
 
+  /** Werden gerade Punkte einzeln gesetzt (Polygon oder Straßenverlauf)? */
+  #isPointDrawing(): boolean {
+    return this.#drawMode === 'polygon' || this.#drawMode === 'polyline';
+  }
+
   /** Würde ein Klick an `screenPoint` das Polygon schließen (nahe am ersten Punkt)? */
   #canClosePolygonAt(screenPoint: Vec2 | undefined): boolean {
     const first = this.#polygonPoints[0];
+    if (this.#drawMode !== 'polygon') return false;
     if (!screenPoint || !first || this.#polygonPoints.length < 3) return false;
     return (
       distance(screenPoint, worldToScreen(this.#camera, this.#viewport, first)) <= CLOSE_POLYGON_PX
@@ -352,6 +390,30 @@ export class MapView {
       const screen = worldToScreen(this.#camera, viewport, item.position);
       const isSelected = this.#selected !== undefined && sameRef(item.ref, this.#selected);
 
+      if (item.path && display.pathGraphic && display.caption) {
+        const path = item.path.map((p) => worldToScreen(this.#camera, viewport, p));
+        const widthPx = (item.pathWidth ?? 0) * this.#camera.scale;
+        drawRoad(display.pathGraphic, path, widthPx);
+        updateCaption(display.caption, item.caption ?? '', screen, path);
+        if (isSelected) {
+          drawPathSelection(this.#selection, path, widthPx);
+          this.#selection.position.set(0, 0);
+          this.#selection.angle = 0;
+          this.#selection.visible = true;
+        }
+        continue;
+      }
+      if (item.screenSize && display.caption) {
+        if (display.caption.text !== item.caption) display.caption.text = item.caption ?? '';
+        display.symbol.position.set(screen.x, screen.y);
+        if (isSelected) {
+          drawScreenFrame(this.#selection, display.caption.width, display.caption.height);
+          this.#selection.position.set(screen.x, screen.y);
+          this.#selection.angle = 0;
+          this.#selection.visible = true;
+        }
+        continue;
+      }
       if (item.outline && display.outlineGraphic && display.caption) {
         const outline = item.outline.map((p) => worldToScreen(this.#camera, viewport, p));
         drawBuilding(display.outlineGraphic, outline);
@@ -410,6 +472,7 @@ export class MapView {
           ...item,
           position: drag.position,
           ...(item.outline && { outline: translatePoints(item.outline, offset) }),
+          ...(item.path && { path: translatePoints(item.path, offset) }),
         };
       }
       case 'rotate':
@@ -534,12 +597,16 @@ export class MapView {
         return;
       }
 
+      const candidates = this.#placing
+        ? this.#items.filter((i) => !i.outline && !i.path)
+        : this.#items;
       const item =
-        e.button === 0 ? hitTestItems(this.#items, this.#camera, this.#viewport, point) : undefined;
-      // Ein noch nicht ausgewähltes Gebäude wird erst beim Loslassen ausgewählt; Ziehen
-      // verschiebt bis dahin die Karte (siehe `selectOnClick`).
+        e.button === 0 ? hitTestItems(candidates, this.#camera, this.#viewport, point) : undefined;
+      // Ein noch nicht ausgewähltes Gebäude (oder eine Straße) wird erst beim Loslassen
+      // ausgewählt; Ziehen verschiebt bis dahin die Karte (siehe `selectOnClick`).
+      const isLarge = item?.outline !== undefined || item?.path !== undefined;
       const isUnselectedBuilding =
-        item?.outline !== undefined && !(selected && sameRef(selected.ref, item.ref));
+        isLarge && !(selected && item && sameRef(selected.ref, item.ref));
       if (item && isUnselectedBuilding) {
         this.#drag = { ...base, kind: 'pan', last: point, selectOnClick: item.ref };
       } else if (item) {
@@ -575,7 +642,7 @@ export class MapView {
         }
       }
       this.#cursorWorld = toWorld(point);
-      if (this.#drawMode === 'polygon') this.#dirty = true;
+      if (this.#isPointDrawing()) this.#dirty = true;
       this.#options.onCursorMove?.(this.#cursorWorld);
     };
 
@@ -589,7 +656,7 @@ export class MapView {
       if (drag.kind === 'pan') {
         if (drag.moved || e.type !== 'pointerup') return;
         const point = localPoint(e);
-        if (this.#drawMode === 'polygon') {
+        if (this.#isPointDrawing()) {
           this.#addPolygonPoint(point);
         } else if (drag.selectOnClick) {
           this.#options.onItemSelect?.(drag.selectOnClick);
@@ -599,7 +666,7 @@ export class MapView {
         return;
       }
       if (drag.kind === 'draw-rectangle') {
-        if (drag.moved) this.#options.onShapeDrawn?.(rectangle(drag.from, drag.to));
+        if (drag.moved) this.#options.onShapeDrawn?.(rectangle(drag.from, drag.to), 'rectangle');
         return;
       }
       if (!drag.moved) return;
@@ -628,7 +695,7 @@ export class MapView {
     // Doppelklick schließt das Polygon. Die beiden Klicks davor haben schon Punkte gesetzt –
     // doppelte Punkte entfernt `finishPolygon`.
     const onDoubleClick = () => {
-      if (this.#drawMode === 'polygon') this.finishPolygon();
+      if (this.#isPointDrawing()) this.finishPolygon();
     };
 
     const onWheel = (e: WheelEvent) => {
@@ -708,22 +775,32 @@ export class MapView {
 }
 
 function createDisplay(item: MapItem): ItemDisplay {
-  if (item.outline) {
-    const caption = createCaption();
+  const { symbolType } = item;
+  if (item.path || item.outline || item.screenSize) {
+    const caption = item.screenSize ? createMapLabel() : createCaption();
     const symbol = new Container();
     symbol.addChild(caption);
-    return { symbol, outlineGraphic: new Graphics(), caption };
+    if (item.path) return { symbol, caption, pathGraphic: new Graphics(), symbolType };
+    if (item.outline) return { symbol, caption, outlineGraphic: new Graphics(), symbolType };
+    return { symbol, caption, symbolType };
   }
   if (item.length !== undefined) {
     const lengthGraphic = new Graphics();
     const symbol = new Container();
     symbol.addChild(lengthGraphic);
-    return { symbol, lengthGraphic };
+    return { symbol, lengthGraphic, symbolType };
   }
-  return { symbol: createItemSymbol(item), ...(isArea(item) && { area: new Graphics() }) };
+  return {
+    symbol: createItemSymbol(item),
+    ...(isArea(item) && { area: new Graphics() }),
+    symbolType,
+  };
 }
 
-/** Setzt die Beschriftung eines Gebäudes in die Mitte; zu kleine Gebäude bleiben unbeschriftet. */
+/**
+ * Setzt die Beschriftung eines Gebäudes oder einer Straße an `center`; ist das Objekt auf dem
+ * Bildschirm zu klein für den Text, bleibt es unbeschriftet.
+ */
 function updateCaption(caption: Text, text: string, center: Vec2, outline: readonly Vec2[]): void {
   if (caption.text !== text) caption.text = text;
   const xs = outline.map((p) => p.x);
@@ -747,14 +824,17 @@ function roundPoint(p: Vec2): Vec2 {
   return { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
 }
 
-/** Entfernt aufeinanderfolgende (fast) gleiche Punkte, z. B. die zwei Klicks eines Doppelklicks. */
-function withoutDuplicates(points: readonly Vec2[]): Vec2[] {
+/**
+ * Entfernt aufeinanderfolgende (fast) gleiche Punkte, z. B. die zwei Klicks eines Doppelklicks.
+ * Bei geschlossenen Formen (Polygon) fällt auch ein letzter Punkt weg, der auf dem ersten liegt.
+ */
+function withoutDuplicates(points: readonly Vec2[], closed: boolean): Vec2[] {
   const result: Vec2[] = [];
   for (const p of points) {
     const last = result.at(-1);
     if (!last || distance(last, p) > 0.2) result.push(p);
   }
-  if (result.length > 1 && distance(result[0]!, result.at(-1)!) <= 0.2) result.pop();
+  if (closed && result.length > 1 && distance(result[0]!, result.at(-1)!) <= 0.2) result.pop();
   return result;
 }
 

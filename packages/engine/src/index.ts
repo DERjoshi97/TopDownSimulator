@@ -10,8 +10,13 @@ export {
 export {
   initialState,
   visibilities,
+  hydrantTypes,
   type Building,
   type BuildingId,
+  type HydrantType,
+  type MapFeature,
+  type MapFeatureChanges,
+  type MapFeatureId,
   type ClockState,
   type GameState,
   type SituationObject,
@@ -37,6 +42,10 @@ export type {
   MoveBuilding,
   ChangeBuilding,
   RemoveBuilding,
+  AddMapFeature,
+  MoveMapFeature,
+  ChangeMapFeature,
+  RemoveMapFeature,
   PauseClock,
   ResumeClock,
   SetClockSpeed,
@@ -58,6 +67,10 @@ export type {
   BuildingMoved,
   BuildingChanged,
   BuildingRemoved,
+  MapFeatureAdded,
+  MapFeatureMoved,
+  MapFeatureChanged,
+  MapFeatureRemoved,
   ClockPaused,
   ClockResumed,
   ClockSpeedChanged,
@@ -66,6 +79,7 @@ export { decide, type DecideResult, type Rejection } from './decide';
 export { applyEvent, replay } from './apply';
 export { Game } from './game';
 export { presentationState } from './visibility';
+export { pathLength } from './mapFeatures';
 export {
   EXERCISE_FILE_FORMAT,
   EXERCISE_FILE_VERSION,
