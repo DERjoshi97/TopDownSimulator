@@ -40,10 +40,11 @@ export function hitTestItems(
       return item;
     }
     // Punkt in das Koordinatensystem des Zeichens zurückdrehen, dann reicht ein einfacher Rechteck-Test.
+    // Die Zeichen sind maßstäblich: Größe in Metern × Zoom = Größe in Pixeln.
     const local = rotate(offset, -item.rotation);
     if (
-      Math.abs(local.x) <= item.size.width / 2 + HIT_MARGIN &&
-      Math.abs(local.y) <= item.size.height / 2 + HIT_MARGIN
+      Math.abs(local.x) <= (item.size.width * camera.scale) / 2 + HIT_MARGIN &&
+      Math.abs(local.y) <= (item.size.height * camera.scale) / 2 + HIT_MARGIN
     ) {
       return item;
     }
@@ -51,15 +52,42 @@ export function hitTestItems(
   return undefined;
 }
 
-/** Abstand des Drehgriffs von der Zeichenmitte – bei Drehung 0 genau darüber. */
-export function rotationHandleOffset(symbolHeight: number): number {
-  return symbolHeight / 2 + ROTATION_HANDLE_GAP;
+/**
+ * Abstand des Drehgriffs von der Zeichenmitte in Pixeln – bei Drehung 0 genau darüber.
+ * Die Griffe selbst sind Bedienelemente und bleiben beim Zoomen gleich groß.
+ */
+export function rotationHandleOffset(symbolHeightPx: number): number {
+  return symbolHeightPx / 2 + ROTATION_HANDLE_GAP;
 }
 
-/** Bildschirmposition des Drehgriffs für ein Zeichen mit Mitte `center`. */
-export function rotationHandlePosition(center: Vec2, item: MapItem): Vec2 {
-  const offset = rotate({ x: 0, y: -rotationHandleOffset(item.size.height) }, item.rotation);
+/** Bildschirmposition des Drehgriffs für ein Zeichen mit Mitte `center` bei `scale` Pixeln pro Meter. */
+export function rotationHandlePosition(center: Vec2, item: MapItem, scale: number): Vec2 {
+  const offset = rotate(
+    { x: 0, y: -rotationHandleOffset(item.size.height * scale) },
+    item.rotation,
+  );
   return { x: center.x + offset.x, y: center.y + offset.y };
+}
+
+/** Bildschirmposition des Längen-Griffs: am rechten Ende des Zeichens, mitgedreht. */
+export function lengthHandlePosition(center: Vec2, item: MapItem, scale: number): Vec2 {
+  const offset = rotate({ x: (item.size.width * scale) / 2, y: 0 }, item.rotation);
+  return { x: center.x + offset.x, y: center.y + offset.y };
+}
+
+/**
+ * Länge in Metern, wenn das Ende eines Zeichens mit Mitte `center` auf `screenPoint` gezogen wird.
+ * Die Mitte bleibt stehen, beide Enden bewegen sich – daher der doppelte Abstand.
+ * Zählt nur der Anteil entlang der Zeichenachse, damit seitliches Wackeln nichts ändert.
+ */
+export function lengthTowards(
+  center: Vec2,
+  rotation: number,
+  screenPoint: Vec2,
+  scale: number,
+): number {
+  const local = rotate({ x: screenPoint.x - center.x, y: screenPoint.y - center.y }, -rotation);
+  return (2 * Math.abs(local.x)) / scale;
 }
 
 /** Bildschirmposition des Größen-Griffs einer Fläche: rechts auf dem Kreisrand. */

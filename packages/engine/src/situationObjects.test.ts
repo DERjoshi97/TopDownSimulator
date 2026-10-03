@@ -149,6 +149,55 @@ describe('decide: Lageobjekt ändern', () => {
   });
 });
 
+describe('decide: Länge einer Absperrung', () => {
+  const withCordon = replay([
+    {
+      type: 'SituationObjectPlaced',
+      exerciseTime: 0,
+      objectId: 'cordon-1',
+      objectType: 'cordon',
+      position: { x: 0, y: 0 },
+      rotation: 0,
+      length: 10,
+      visibility: 'everyone',
+    },
+  ]);
+
+  it('übernimmt die Länge beim Platzieren', () => {
+    expect(withCordon.situationObjects['cordon-1']?.length).toBe(10);
+  });
+
+  it('ändert die Länge', () => {
+    const result = decide(
+      withCordon,
+      { type: 'ChangeSituationObjectLength', objectId: 'cordon-1', length: 25 },
+      0,
+    );
+    expect(result.ok && result.events[0]).toMatchObject({
+      type: 'SituationObjectLengthChanged',
+      length: 25,
+    });
+  });
+
+  it('lehnt ungültige Längen ab', () => {
+    const result = decide(
+      withCordon,
+      { type: 'ChangeSituationObjectLength', objectId: 'cordon-1', length: 0 },
+      0,
+    );
+    expect(!result.ok && result.rejection.code).toBe('invalid-length');
+  });
+
+  it('lehnt eine Länge für Objekte ohne Länge ab', () => {
+    const result = decide(
+      withFire,
+      { type: 'ChangeSituationObjectLength', objectId: 'fire-1', length: 5 },
+      0,
+    );
+    expect(!result.ok && result.rejection.code).toBe('not-resizable');
+  });
+});
+
 describe('Lageobjekte im Spielverlauf', () => {
   it('ergibt aus allen Befehlen den erwarteten Stand', () => {
     const game = new Game();

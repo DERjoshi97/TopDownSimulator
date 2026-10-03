@@ -45,6 +45,8 @@ export interface SituationObjectPlaced extends BaseEvent {
   readonly rotation: number;
   /** Nur bei Flächen vorhanden. */
   readonly radius?: number;
+  /** Nur bei linienförmigen Objekten vorhanden. */
+  readonly length?: number;
   readonly visibility: Visibility;
 }
 
@@ -65,6 +67,12 @@ export interface SituationObjectResized extends BaseEvent {
   readonly type: 'SituationObjectResized';
   readonly objectId: SituationObjectId;
   readonly radius: number;
+}
+
+export interface SituationObjectLengthChanged extends BaseEvent {
+  readonly type: 'SituationObjectLengthChanged';
+  readonly objectId: SituationObjectId;
+  readonly length: number;
 }
 
 export interface SituationObjectVisibilityChanged extends BaseEvent {
@@ -100,6 +108,7 @@ export type GameEvent =
   | SituationObjectMoved
   | SituationObjectRotated
   | SituationObjectResized
+  | SituationObjectLengthChanged
   | SituationObjectVisibilityChanged
   | SituationObjectRemoved
   | ClockPaused

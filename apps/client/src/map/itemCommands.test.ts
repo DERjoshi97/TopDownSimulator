@@ -23,9 +23,15 @@ describe('placeCommand', () => {
     });
   });
 
-  it('lässt den Radius bei Symbolen weg', () => {
+  it('lässt Radius und Länge bei festen Symbolen weg', () => {
     const command = placeCommand({ kind: 'situationObject', typeId: 'person' }, 'p', origin);
     expect(command).not.toHaveProperty('radius');
+    expect(command).not.toHaveProperty('length');
+  });
+
+  it('gibt Absperrungen die Startlänge aus dem Katalog', () => {
+    const command = placeCommand({ kind: 'situationObject', typeId: 'cordon' }, 'c', origin);
+    expect(command).toMatchObject({ length: 10 });
   });
 });
 

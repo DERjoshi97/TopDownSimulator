@@ -36,6 +36,8 @@ export interface SituationObject {
   readonly rotation: number;
   /** Ausdehnung in Metern bei Flächen wie Feuer oder Rauch. Fehlt bei reinen Symbolen. */
   readonly radius?: number;
+  /** Länge in Metern bei linienförmigen Objekten wie einer Absperrung. Fehlt sonst. */
+  readonly length?: number;
   readonly visibility: Visibility;
 }
 

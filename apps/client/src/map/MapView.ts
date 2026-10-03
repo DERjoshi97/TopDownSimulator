@@ -14,12 +14,20 @@ import {
   ROTATION_STEP,
   hitTestHandle,
   hitTestItems,
+  lengthHandlePosition,
+  lengthTowards,
   resizeHandlePosition,
   rotationHandlePosition,
   rotationTowards,
 } from './hitTest';
 import { isArea, refKey, sameRef, type MapItem, type MapItemRef } from './mapItems';
-import { createItemSymbol, drawArea, drawSelection } from './symbols';
+import {
+  SYMBOL_PX_PER_METER,
+  createItemSymbol,
+  drawArea,
+  drawLengthSymbol,
+  drawSelection,
+} from './symbols';
 
 export interface MapViewOptions {
   /** Wird aufgerufen, wenn sich Ausschnitt oder Zoom ändern. */
@@ -36,6 +44,8 @@ export interface MapViewOptions {
   onItemRotateEnd?: (ref: MapItemRef, rotation: number) => void;
   /** Eine Fläche wurde am Größen-Griff auf einen neuen Radius in Metern gezogen. */
   onItemResizeEnd?: (ref: MapItemRef, radius: number) => void;
+  /** Ein Objekt wurde am Längen-Griff auf eine neue Länge in Metern gezogen. */
+  onItemLengthEnd?: (ref: MapItemRef, length: number) => void;
 }
 
 const COLORS = {
@@ -57,6 +67,9 @@ const DIMMED_ALPHA = 0.45;
 /** Kleinster Radius einer Fläche in Metern beim Ziehen am Größen-Griff. */
 const MIN_RADIUS = 0.5;
 
+/** Kleinste Länge in Metern beim Ziehen am Längen-Griff. */
+const MIN_LENGTH = 1;
+
 /**
  * Was gerade mit gedrückter Maustaste passiert: Karte verschieben, Objekt ziehen, drehen
  * oder in der Größe ändern. Während des Ziehens hält `Drag` den Zwischenstand; erst beim
@@ -73,12 +86,17 @@ type Drag = { pointerId: number; start: Vec2; moved: boolean } & (
     }
   | { kind: 'rotate'; ref: MapItemRef; rotation: number }
   | { kind: 'resize'; ref: MapItemRef; radius: number }
+  | { kind: 'length'; ref: MapItemRef; length: number }
 );
 
-/** Was für ein Objekt gezeichnet wird: das Zeichen und bei Flächen der Kreis darunter. */
+/**
+ * Was für ein Objekt gezeichnet wird: das Zeichen, bei Flächen der Kreis darunter und bei
+ * einstellbarer Länge eine Grafik, die bei jeder Änderung neu gezeichnet wird.
+ */
 interface ItemDisplay {
   readonly symbol: Container;
   readonly area?: Graphics;
+  readonly lengthGraphic?: Graphics;
 }
 
 /**
@@ -154,10 +172,7 @@ export class MapView {
     for (const item of items) {
       const key = refKey(item.ref);
       if (this.#displays.has(key)) continue;
-      const display: ItemDisplay = {
-        symbol: createItemSymbol(item),
-        ...(isArea(item) && { area: new Graphics() }),
-      };
+      const display = createDisplay(item);
       this.#displays.set(key, display);
       this.#symbolLayer.addChild(display.symbol);
       if (display.area) this.#areaLayer.addChild(display.area);
@@ -220,13 +235,20 @@ export class MapView {
       display.symbol.position.set(screen.x, screen.y);
       display.symbol.angle = item.rotation;
       display.symbol.alpha = alpha;
+      // Maßstäblich: Zeichen sind bei SYMBOL_PX_PER_METER erzeugt und werden auf den Zoom skaliert.
+      // Objekte mit einstellbarer Länge werden direkt in Pixeln neu gezeichnet.
+      if (display.lengthGraphic) {
+        drawLengthSymbol(display.lengthGraphic, item, this.#camera.scale);
+      } else {
+        display.symbol.scale.set(this.#camera.scale / SYMBOL_PX_PER_METER);
+      }
       if (display.area) {
         drawArea(display.area, item.symbolType, radiusPx);
         display.area.position.set(screen.x, screen.y);
         display.area.alpha = alpha;
       }
       if (this.#selected && sameRef(item.ref, this.#selected)) {
-        drawSelection(this.#selection, item, radiusPx);
+        drawSelection(this.#selection, item, radiusPx, this.#camera.scale);
         this.#selection.position.set(screen.x, screen.y);
         this.#selection.angle = item.rotation;
         this.#selection.visible = true;
@@ -248,6 +270,12 @@ export class MapView {
         return { ...item, rotation: drag.rotation };
       case 'resize':
         return { ...item, radius: drag.radius };
+      case 'length':
+        return {
+          ...item,
+          length: drag.length,
+          size: { ...item.size, width: drag.length },
+        };
     }
   }
 
@@ -294,15 +322,25 @@ export class MapView {
    * Welcher Griff des ausgewählten Objekts liegt unter `point`? Griffe liegen außerhalb des
    * Zeichens und werden daher vor den Objekten selbst geprüft.
    */
-  #hitTestHandles(point: Vec2): 'rotate' | 'resize' | undefined {
+  #hitTestHandles(point: Vec2): 'rotate' | 'resize' | 'length' | undefined {
     const selected = this.#selectedItem();
     if (!selected) return undefined;
     const center = this.#screenPosition(selected);
+    const scale = this.#camera.scale;
     if (isArea(selected)) {
-      const handle = resizeHandlePosition(center, selected.radius * this.#camera.scale);
+      const handle = resizeHandlePosition(center, selected.radius * scale);
       return hitTestHandle(handle, point) ? 'resize' : undefined;
     }
-    if (selected.rotatable && hitTestHandle(rotationHandlePosition(center, selected), point)) {
+    if (
+      selected.length !== undefined &&
+      hitTestHandle(lengthHandlePosition(center, selected, scale), point)
+    ) {
+      return 'length';
+    }
+    if (
+      selected.rotatable &&
+      hitTestHandle(rotationHandlePosition(center, selected, scale), point)
+    ) {
       return 'rotate';
     }
     return undefined;
@@ -329,10 +367,13 @@ export class MapView {
       const handle = e.button === 0 ? this.#hitTestHandles(point) : undefined;
       const selected = this.#selectedItem();
       if (handle && selected) {
+        const { ref } = selected;
         this.#drag =
           handle === 'rotate'
-            ? { ...base, kind: 'rotate', ref: selected.ref, rotation: selected.rotation }
-            : { ...base, kind: 'resize', ref: selected.ref, radius: selected.radius ?? 0 };
+            ? { ...base, kind: 'rotate', ref, rotation: selected.rotation }
+            : handle === 'resize'
+              ? { ...base, kind: 'resize', ref, radius: selected.radius ?? 0 }
+              : { ...base, kind: 'length', ref, length: selected.length ?? 0 };
         return;
       }
 
@@ -393,6 +434,9 @@ export class MapView {
         case 'resize':
           this.#options.onItemResizeEnd?.(drag.ref, drag.radius);
           break;
+        case 'length':
+          this.#options.onItemLengthEnd?.(drag.ref, drag.length);
+          break;
       }
     };
 
@@ -436,21 +480,35 @@ export class MapView {
     if (!item) return;
     const center = this.#screenPosition(item);
 
+    // Längen und Radien auf 0,1 m runden, damit im Einsatztagebuch keine krummen Werte stehen;
+    // mit Umschalt auf ganze Meter.
+    // (Teilen statt mit 0,1 malnehmen, sonst entstehen Werte wie 3.3000000000000003.)
+    const perMeter = shiftKey ? 1 : 10;
+    const round = (meters: number) => Math.round(meters * perMeter) / perMeter;
+
     if (drag.kind === 'rotate') {
       const rotation = rotationTowards(center, point);
       // Mit Umschalt rastet die Drehung in festen Schritten ein, z. B. für exakt 90°.
       drag.rotation = shiftKey
         ? (Math.round(rotation / ROTATION_STEP) * ROTATION_STEP) % 360
         : rotation;
+    } else if (drag.kind === 'resize') {
+      drag.radius = Math.max(MIN_RADIUS, round(distance(center, point) / this.#camera.scale));
     } else {
-      const meters = distance(center, point) / this.#camera.scale;
-      // Auf 0,1 m runden, damit im Einsatztagebuch keine krummen Werte stehen;
-      // mit Umschalt auf ganze Meter.
-      // (Teilen statt mit 0,1 malnehmen, sonst entstehen Werte wie 3.3000000000000003.)
-      const perMeter = shiftKey ? 1 : 10;
-      drag.radius = Math.max(MIN_RADIUS, Math.round(meters * perMeter) / perMeter);
+      const meters = lengthTowards(center, item.rotation, point, this.#camera.scale);
+      drag.length = Math.max(MIN_LENGTH, round(meters));
     }
   }
+}
+
+function createDisplay(item: MapItem): ItemDisplay {
+  if (item.length !== undefined) {
+    const lengthGraphic = new Graphics();
+    const symbol = new Container();
+    symbol.addChild(lengthGraphic);
+    return { symbol, lengthGraphic };
+  }
+  return { symbol: createItemSymbol(item), ...(isArea(item) && { area: new Graphics() }) };
 }
 
 /** Liegt `value` (ungefähr) auf einem Vielfachen von `step`? Toleranz wegen Rundungsfehlern. */

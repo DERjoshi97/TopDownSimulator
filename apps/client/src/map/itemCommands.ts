@@ -10,13 +10,17 @@ export function placeCommand(tool: PlacementTool, id: string, position: Vec2): C
   if (tool.kind === 'unit') {
     return { type: 'PlaceUnit', unitId: id, unitType: tool.typeId, position };
   }
-  const radius = findSituationObjectType(tool.typeId)?.defaultRadius;
+  const definition = findSituationObjectType(tool.typeId);
+  const radius = definition?.defaultRadius;
+  // Nur Objekte mit einstellbarer Länge speichern sie – sonst gilt die Länge aus dem Katalog.
+  const length = definition?.adjustableLength ? definition.length : undefined;
   return {
     type: 'PlaceSituationObject',
     objectId: id,
     objectType: tool.typeId,
     position,
     ...(radius !== undefined && { radius }),
+    ...(length !== undefined && { length }),
   };
 }
 

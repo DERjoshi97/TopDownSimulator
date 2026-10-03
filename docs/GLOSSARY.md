@@ -74,14 +74,15 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 
 ## Katalog
 
-| Deutsch                        | Englisch im Code                |
-| ------------------------------ | ------------------------------- |
-| Katalog / Stammdaten           | `Catalog`                       |
-| Einheitentyp (Katalogeintrag)  | `UnitTypeDefinition`            |
-| Lageobjekttyp (Katalogeintrag) | `SituationObjectTypeDefinition` |
-| Ausdehnung: Fläche / Symbol    | `extent`: `area` / `symbol`     |
-| Grundzeichen                   | `SymbolShape`                   |
-| Organisation                   | `Organization`                  |
-| Feuerwehr (Organisation)       | `fire`                          |
-| Rettungsdienst (Organisation)  | `ems`                           |
-| Werkzeug (Oberfläche)          | `Tool`                          |
+| Deutsch                                | Englisch im Code                |
+| -------------------------------------- | ------------------------------- |
+| Katalog / Stammdaten                   | `Catalog`                       |
+| Einheitentyp (Katalogeintrag)          | `UnitTypeDefinition`            |
+| Lageobjekttyp (Katalogeintrag)         | `SituationObjectTypeDefinition` |
+| Ausdehnung: Fläche / Symbol            | `extent`: `area` / `symbol`     |
+| Abmessungen (Länge × Breite in Metern) | `length` × `width`              |
+| Grundzeichen                           | `SymbolShape`                   |
+| Organisation                           | `Organization`                  |
+| Feuerwehr (Organisation)               | `fire`                          |
+| Rettungsdienst (Organisation)          | `ems`                           |
+| Werkzeug (Oberfläche)                  | `Tool`                          |

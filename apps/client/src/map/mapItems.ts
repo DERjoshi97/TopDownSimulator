@@ -7,7 +7,7 @@ export interface MapItemRef {
   readonly id: string;
 }
 
-/** Größe eines Zeichens in Bildschirmpixeln (ungedreht). */
+/** Größe eines Zeichens in Metern (ungedreht): `width` waagerecht, `height` senkrecht. */
 export interface SymbolSize {
   readonly width: number;
   readonly height: number;
@@ -23,34 +23,31 @@ export interface MapItem {
   readonly symbolType: string;
   readonly position: Vec2;
   readonly rotation: number;
-  /**
-   * Größe des Zeichens in Pixeln. Zeichen bleiben beim Zoomen gleich groß –
-   * sonst wären sie auf Verbandsebene unsichtbar klein.
-   */
+  /** Maßstäbliche Größe des Zeichens in Metern – es wächst und schrumpft mit dem Zoom. */
   readonly size: SymbolSize;
-  /** Ausdehnung in Metern bei Flächen (Feuer, Rauch …). Wächst anders als das Zeichen mit dem Zoom. */
+  /** Ausdehnung in Metern bei Flächen (Feuer, Rauch …). Das Zeichen sitzt in der Mitte. */
   readonly radius?: number;
+  /** Einstellbare Länge in Metern, z. B. bei einer Absperrung. Entspricht dann `size.width`. */
+  readonly length?: number;
   readonly rotatable: boolean;
   /** Halbtransparent zeichnen, z. B. weil nur die Übungsleitung das Objekt sieht. */
   readonly dimmed: boolean;
 }
 
-export const UNIT_SYMBOL_SIZE: SymbolSize = { width: 44, height: 26 };
+/** Für Typen ohne Maße im Katalog. */
+const UNKNOWN_SIZE: SymbolSize = { width: 2, height: 2 };
 
-/** Zeichengrößen der Lageobjekte. Flächen haben nur ein kleines Zeichen in der Mitte. */
-const SITUATION_SYMBOL_SIZES: Record<string, SymbolSize> = {
-  person: { width: 22, height: 30 },
-  cordon: { width: 64, height: 14 },
-};
-const AREA_SYMBOL_SIZE: SymbolSize = { width: 24, height: 24 };
+/** Zeichen in der Mitte einer Fläche. */
+const AREA_SIGN_SIZE: SymbolSize = { width: 2.4, height: 2.4 };
 
 export function unitItem(unit: Unit): MapItem {
+  const definition = findUnitType(unit.unitType);
   return {
     ref: { kind: 'unit', id: unit.id },
     symbolType: unit.unitType,
     position: unit.position,
     rotation: unit.rotation,
-    size: UNIT_SYMBOL_SIZE,
+    size: definition ? { width: definition.length, height: definition.width } : UNKNOWN_SIZE,
     rotatable: true,
     dimmed: false,
   };
@@ -58,16 +55,25 @@ export function unitItem(unit: Unit): MapItem {
 
 export function situationObjectItem(object: SituationObject): MapItem {
   const isArea = object.radius !== undefined;
+  const definition = findSituationObjectType(object.objectType);
+  const catalogSize =
+    definition?.length !== undefined && definition.width !== undefined
+      ? { width: definition.length, height: definition.width }
+      : UNKNOWN_SIZE;
+  const size = isArea
+    ? AREA_SIGN_SIZE
+    : object.length !== undefined
+      ? { width: object.length, height: catalogSize.height }
+      : catalogSize;
   return {
     ref: { kind: 'situationObject', id: object.id },
     symbolType: object.objectType,
     position: object.position,
     // Flächen sind Kreise – eine Drehung hätte keine sichtbare Wirkung.
     rotation: isArea ? 0 : object.rotation,
-    size: isArea
-      ? AREA_SYMBOL_SIZE
-      : (SITUATION_SYMBOL_SIZES[object.objectType] ?? AREA_SYMBOL_SIZE),
+    size,
     ...(isArea && { radius: object.radius }),
+    ...(object.length !== undefined && { length: object.length }),
     rotatable: !isArea,
     dimmed: object.visibility === 'director',
   };
