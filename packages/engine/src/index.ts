@@ -1,8 +1,22 @@
 export { exerciseTimeAt, formatExerciseTime, type ClockAnchor } from './clock';
-export { isFiniteVec2, normalizeRotation, type Vec2 } from './geometry';
+export {
+  isFiniteVec2,
+  normalizeRotation,
+  polygonArea,
+  polygonCentroid,
+  translatePoints,
+  type Vec2,
+} from './geometry';
 export {
   initialState,
   visibilities,
+  hydrantTypes,
+  type Building,
+  type BuildingId,
+  type HydrantType,
+  type MapFeature,
+  type MapFeatureChanges,
+  type MapFeatureId,
   type ClockState,
   type GameState,
   type SituationObject,
@@ -24,6 +38,14 @@ export type {
   ChangeSituationObjectLength,
   ChangeSituationObjectVisibility,
   RemoveSituationObject,
+  AddBuilding,
+  MoveBuilding,
+  ChangeBuilding,
+  RemoveBuilding,
+  AddMapFeature,
+  MoveMapFeature,
+  ChangeMapFeature,
+  RemoveMapFeature,
   PauseClock,
   ResumeClock,
   SetClockSpeed,
@@ -41,6 +63,14 @@ export type {
   SituationObjectLengthChanged,
   SituationObjectVisibilityChanged,
   SituationObjectRemoved,
+  BuildingAdded,
+  BuildingMoved,
+  BuildingChanged,
+  BuildingRemoved,
+  MapFeatureAdded,
+  MapFeatureMoved,
+  MapFeatureChanged,
+  MapFeatureRemoved,
   ClockPaused,
   ClockResumed,
   ClockSpeedChanged,
@@ -49,6 +79,7 @@ export { decide, type DecideResult, type Rejection } from './decide';
 export { applyEvent, replay } from './apply';
 export { Game } from './game';
 export { presentationState } from './visibility';
+export { pathLength } from './mapFeatures';
 export {
   EXERCISE_FILE_FORMAT,
   EXERCISE_FILE_VERSION,

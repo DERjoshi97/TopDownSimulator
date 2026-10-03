@@ -77,3 +77,101 @@ describe('logbookEntries', () => {
     ]);
   });
 });
+
+describe('Karte und Absperrung im Tagebuch', () => {
+  it('beschreibt Gebäude mit Name, Geschossen und Fläche', () => {
+    const outline = [
+      { x: 0, y: 0 },
+      { x: 12, y: 0 },
+      { x: 12, y: 10 },
+      { x: 0, y: 10 },
+    ];
+    const entries = play(
+      [0, { type: 'AddBuilding', buildingId: 'b', outline, storeys: 2 }],
+      [0, { type: 'ChangeBuilding', buildingId: 'b', name: 'Schule', storeys: 3 }],
+      [0, { type: 'MoveBuilding', buildingId: 'b', offset: { x: 3, y: 4 } }],
+      [0, { type: 'RemoveBuilding', buildingId: 'b' }],
+    );
+    expect(texts(entries)).toEqual([
+      'Karte: Gebäude 1 gezeichnet (2 Geschosse, 120 m²)',
+      'Gebäude 1: umbenannt in „Schule“, 3 Geschosse',
+      'Gebäude 1 verschoben (5 m)',
+      'Gebäude 1 entfernt',
+    ]);
+  });
+
+  it('beschreibt Längenänderungen einer Absperrung', () => {
+    const entries = play(
+      [
+        0,
+        {
+          type: 'PlaceSituationObject',
+          objectId: 'c',
+          objectType: 'cordon',
+          position: { x: 0, y: 0 },
+          length: 10,
+        },
+      ],
+      [0, { type: 'ChangeSituationObjectLength', objectId: 'c', length: 25 }],
+      [0, { type: 'ChangeSituationObjectLength', objectId: 'c', length: 20 }],
+    );
+    expect(texts(entries).slice(1)).toEqual([
+      'Absperrung 1 verlängert auf 25 m',
+      'Absperrung 1 verkürzt auf 20 m',
+    ]);
+  });
+});
+
+describe('Kartenelemente im Tagebuch', () => {
+  it('beschreibt Straßen, Hydranten und Beschriftungen', () => {
+    const entries = play(
+      [
+        0,
+        {
+          type: 'AddMapFeature',
+          feature: {
+            kind: 'road',
+            id: 'r',
+            path: [
+              { x: 0, y: 0 },
+              { x: 40, y: 0 },
+            ],
+            width: 6,
+          },
+        },
+      ],
+      [0, { type: 'ChangeMapFeature', featureId: 'r', changes: { name: 'Hauptstraße', width: 8 } }],
+      [
+        0,
+        {
+          type: 'AddMapFeature',
+          feature: {
+            kind: 'hydrant',
+            id: 'h',
+            position: { x: 0, y: 0 },
+            hydrantType: 'underground',
+          },
+        },
+      ],
+      [0, { type: 'ChangeMapFeature', featureId: 'h', changes: { hydrantType: 'above-ground' } }],
+      [
+        0,
+        {
+          type: 'AddMapFeature',
+          feature: { kind: 'label', id: 'l', position: { x: 0, y: 0 }, text: 'Eingang' },
+        },
+      ],
+      [0, { type: 'MoveMapFeature', featureId: 'l', offset: { x: 3, y: 4 } }],
+      [0, { type: 'RemoveMapFeature', featureId: 'h' }],
+    );
+    expect(texts(entries)).toEqual([
+      'Karte: Straße 1 gezeichnet (6 m breit, 40 m lang)',
+      'Straße 1: umbenannt in „Hauptstraße“, 8 m breit',
+      'Karte: Unterflurhydrant 1 gesetzt',
+      'Unterflurhydrant 1: jetzt Überflur',
+      'Karte: Beschriftung 1 „Eingang“ gesetzt',
+      'Beschriftung 1 verschoben (5 m)',
+      'Unterflurhydrant 1 entfernt',
+    ]);
+  });
+});

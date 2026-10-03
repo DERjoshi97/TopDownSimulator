@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Vec2 } from '@tds/engine';
 import { useGameStore } from '../store/gameStore';
-import { useToolStore } from '../store/toolStore';
+import { useToolStore, type PlacementTool } from '../store/toolStore';
 import { useViewStore } from '../store/viewStore';
-import { MapView } from './MapView';
+import { MapView, type DrawMode } from './MapView';
 import { defaultCamera, formatDistance, scaleBar } from './camera';
-import { moveCommand, placeCommand, rotateCommand } from './itemCommands';
+import {
+  addBuildingCommand,
+  addRoadCommand,
+  moveCommand,
+  placeCommand,
+  placeMapFeatureCommand,
+  rotateCommand,
+} from './itemCommands';
 import { mapItemsFromState, typeName } from './mapItems';
 
 /**
@@ -36,15 +43,30 @@ export function MapCanvas() {
           select(undefined);
           return;
         }
+        // Gebäude und Straßen zeichnet die Kartenansicht selbst und meldet sie über `onShapeDrawn`.
+        if (activeTool.kind === 'building' || activeTool.typeId === 'road') return;
         const id = crypto.randomUUID();
-        const result = useGameStore.getState().execute(placeCommand(activeTool, id, world));
+        const command =
+          activeTool.kind === 'mapFeature'
+            ? placeMapFeatureCommand(activeTool.typeId, id, world)
+            : placeCommand(activeTool, id, world);
+        const result = useGameStore.getState().execute(command);
         // Mit gedrückter Umschalttaste bleibt das Werkzeug aktiv, um mehrere Objekte zu setzen.
         // Sonst wird das neue Objekt gleich ausgewählt, damit man es direkt anpassen kann.
         if (!shiftKey && result.ok) select({ kind: activeTool.kind, id });
       },
       onItemSelect: (ref) => useToolStore.getState().select(ref),
-      onItemMoveEnd: (ref, position) => {
-        useGameStore.getState().execute(moveCommand(ref, position));
+      onItemMoveEnd: (ref, position, from) => {
+        useGameStore.getState().execute(moveCommand(ref, position, from));
+      },
+      // Das Werkzeug bleibt aktiv, damit man mehrere Gebäude oder Straßen nacheinander zeichnen kann.
+      onShapeDrawn: (points, mode) => {
+        const id = crypto.randomUUID();
+        useGameStore
+          .getState()
+          .execute(
+            mode === 'polyline' ? addRoadCommand(id, points) : addBuildingCommand(id, points),
+          );
       },
       onItemRotateEnd: (ref, rotation) => {
         useGameStore.getState().execute(rotateCommand(ref, rotation));
@@ -75,7 +97,11 @@ export function MapCanvas() {
       v.setSelection(useToolStore.getState().selection);
       unsubscribers.push(
         useGameStore.subscribe((s) => v.setItems(mapItemsFromState(s.state))),
-        useToolStore.subscribe((s) => v.setSelection(s.selection)),
+        useToolStore.subscribe((s) => {
+          v.setSelection(s.selection);
+          v.setDrawMode(drawModeFor(s.activeTool));
+          v.setPlacing(s.activeTool !== undefined && drawModeFor(s.activeTool) === undefined);
+        }),
       );
     });
 
@@ -90,14 +116,45 @@ export function MapCanvas() {
   const bar = scaleBar(camera.scale);
   const activeName = activeTool && typeName(activeTool.kind, activeTool.typeId);
 
+  // Tasten beim Polygon-Zeichnen: Enter schließt ab, ⌫ nimmt den letzten Punkt zurück.
+  // (Esc beendet das Werkzeug ganz – das übernimmt die Werkzeugleiste.)
+  const mode = drawModeFor(activeTool);
+  const isDrawingPolygon = mode === 'polygon' || mode === 'polyline';
+  useEffect(() => {
+    if (!isDrawingPolygon) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter') viewRef.current?.finishPolygon();
+      if (e.key === 'Backspace' || e.key === 'Delete') {
+        e.preventDefault();
+        viewRef.current?.undoPolygonPoint();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isDrawingPolygon]);
+
   return (
     <div className="map">
       <div ref={containerRef} className={`map-canvas${activeTool ? ' map-canvas--placing' : ''}`} />
 
-      {activeName && (
+      {activeTool && (
         <div className="map-hint" role="status">
-          Klicken, um <strong>{activeName}</strong> zu platzieren · Umschalt: mehrere · Esc:
-          abbrechen
+          {mode === undefined ? (
+            <>
+              Klicken, um <strong>{activeName}</strong> zu platzieren · Umschalt: mehrere · Esc:
+              abbrechen
+            </>
+          ) : mode === 'rectangle' ? (
+            <>
+              <strong>Gebäude:</strong> Rechteck aufziehen · Esc: beenden
+            </>
+          ) : (
+            <>
+              <strong>{mode === 'polygon' ? 'Gebäude' : 'Straße'}:</strong>{' '}
+              {mode === 'polygon' ? 'Eckpunkte' : 'Verlauf'} klicken · Doppelklick/Enter: fertig ·
+              ⌫: Punkt zurück · Esc: beenden
+            </>
+          )}
         </div>
       )}
 
@@ -123,4 +180,11 @@ export function MapCanvas() {
 
 function formatCoordinate(meters: number): string {
   return `${meters.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`;
+}
+
+/** Welches Zeichenwerkzeug ein Werkzeug braucht – `undefined` bei Werkzeugen, die per Klick setzen. */
+function drawModeFor(tool: PlacementTool | undefined): DrawMode | undefined {
+  if (tool?.kind === 'building') return tool.typeId;
+  if (tool?.kind === 'mapFeature' && tool.typeId === 'road') return 'polyline';
+  return undefined;
 }

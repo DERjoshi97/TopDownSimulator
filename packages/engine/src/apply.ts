@@ -1,7 +1,11 @@
 import type { GameEvent } from './events';
+import { translatePoints } from './geometry';
+import { translateMapFeature } from './mapFeatures';
 import {
   initialState,
+  type Building,
   type GameState,
+  type MapFeature,
   type SituationObject,
   type SituationObjectId,
 } from './state';
@@ -81,6 +85,56 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
       return { ...state, situationObjects };
     }
 
+    case 'BuildingAdded':
+      return withBuilding(state, {
+        id: event.buildingId,
+        outline: event.outline,
+        storeys: event.storeys,
+        ...(event.name !== undefined && { name: event.name }),
+      });
+
+    case 'BuildingMoved': {
+      const building = state.buildings[event.buildingId];
+      if (!building) return state;
+      return withBuilding(state, {
+        ...building,
+        outline: translatePoints(building.outline, event.offset),
+      });
+    }
+
+    case 'BuildingChanged': {
+      const building = state.buildings[event.buildingId];
+      if (!building) return state;
+      // Ohne Name im Ereignis wird ein bisheriger Name entfernt – daher neu aufbauen statt mischen.
+      return withBuilding(state, {
+        id: building.id,
+        outline: building.outline,
+        storeys: event.storeys,
+        ...(event.name !== undefined && { name: event.name }),
+      });
+    }
+
+    case 'BuildingRemoved': {
+      const buildings = { ...state.buildings };
+      delete buildings[event.buildingId];
+      return { ...state, buildings };
+    }
+
+    case 'MapFeatureAdded':
+    case 'MapFeatureChanged':
+      return withMapFeature(state, event.feature);
+
+    case 'MapFeatureMoved': {
+      const feature = state.mapFeatures[event.featureId];
+      return feature ? withMapFeature(state, translateMapFeature(feature, event.offset)) : state;
+    }
+
+    case 'MapFeatureRemoved': {
+      const mapFeatures = { ...state.mapFeatures };
+      delete mapFeatures[event.featureId];
+      return { ...state, mapFeatures };
+    }
+
     case 'ClockPaused':
       return { ...state, clock: { ...state.clock, running: false } };
 
@@ -90,6 +144,14 @@ export function applyEvent(state: GameState, event: GameEvent): GameState {
     case 'ClockSpeedChanged':
       return { ...state, clock: { ...state.clock, speed: event.speed } };
   }
+}
+
+function withMapFeature(state: GameState, feature: MapFeature): GameState {
+  return { ...state, mapFeatures: { ...state.mapFeatures, [feature.id]: feature } };
+}
+
+function withBuilding(state: GameState, building: Building): GameState {
+  return { ...state, buildings: { ...state.buildings, [building.id]: building } };
 }
 
 function withSituationObject(state: GameState, object: SituationObject): GameState {

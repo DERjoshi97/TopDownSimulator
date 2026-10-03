@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { formatExerciseTime } from '@tds/engine';
 import { useGameStore } from '../store/gameStore';
 import { useToolStore } from '../store/toolStore';
+import type { MapItemRef } from '../map/mapItems';
 import { logbookEntries } from './logbookEntries';
 
 /**
@@ -12,6 +13,7 @@ export function Logbook({ onClose }: { onClose: () => void }) {
   const events = useGameStore((s) => s.events);
   const units = useGameStore((s) => s.state.units);
   const situationObjects = useGameStore((s) => s.state.situationObjects);
+  const buildings = useGameStore((s) => s.state.buildings);
   const select = useToolStore((s) => s.select);
   const entries = useMemo(() => logbookEntries(events), [events]);
   const listRef = useRef<HTMLOListElement>(null);
@@ -22,8 +24,8 @@ export function Logbook({ onClose }: { onClose: () => void }) {
     if (list) list.scrollTop = list.scrollHeight;
   }, [entries.length]);
 
-  const exists = (kind: 'unit' | 'situationObject', id: string) =>
-    kind === 'unit' ? id in units : id in situationObjects;
+  const exists = (kind: MapItemRef['kind'], id: string) =>
+    kind === 'unit' ? id in units : kind === 'building' ? id in buildings : id in situationObjects;
 
   return (
     <section className="logbook" aria-label="Einsatztagebuch">

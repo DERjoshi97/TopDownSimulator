@@ -1,12 +1,15 @@
 import { create } from 'zustand';
 import type { MapItemRef } from '../map/mapItems';
 
-/** Was beim nächsten Klick auf die Karte platziert wird: eine Einheit oder ein Lageobjekt. */
-export interface PlacementTool {
-  readonly kind: MapItemRef['kind'];
-  /** Kennung des Typs im Katalog, z. B. "HLF" oder "fire". */
-  readonly typeId: string;
-}
+/**
+ * Aktives Werkzeug: Einheit oder Lageobjekt platzieren (Typ aus dem Katalog) oder ein Gebäude
+ * zeichnen (als Rechteck oder Polygon).
+ */
+export type PlacementTool =
+  | { readonly kind: 'unit' | 'situationObject'; readonly typeId: string }
+  | { readonly kind: 'building'; readonly typeId: 'rectangle' | 'polygon' }
+  /** Straße wird gezeichnet, Hydrant und Beschriftung werden per Klick gesetzt. */
+  | { readonly kind: 'mapFeature'; readonly typeId: 'road' | 'hydrant' | 'label' };
 
 interface ToolStore {
   /** Aktives Platzier-Werkzeug. `undefined` = kein Werkzeug. */

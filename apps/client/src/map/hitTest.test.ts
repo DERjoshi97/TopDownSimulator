@@ -4,12 +4,19 @@ import {
   hitTestItems,
   lengthHandlePosition,
   lengthTowards,
+  pointInPolygon,
   resizeHandlePosition,
   rotationHandleOffset,
   rotationHandlePosition,
   rotationTowards,
 } from './hitTest';
-import { situationObjectItem, unitItem, type MapItem } from './mapItems';
+import {
+  buildingItem,
+  mapFeatureItem,
+  situationObjectItem,
+  unitItem,
+  type MapItem,
+} from './mapItems';
 
 const viewport = { width: 800, height: 600 };
 const camera = { center: { x: 0, y: 0 }, scale: 10 };
@@ -163,5 +170,88 @@ describe('rotationTowards', () => {
   it('passt zur Lage des Drehgriffs', () => {
     const handle = rotationHandlePosition(center, unit('a', 0, 0, 135), camera.scale);
     expect(rotationTowards(center, handle)).toBeCloseTo(135);
+  });
+});
+
+describe('Gebäude', () => {
+  // L-förmiges Gebäude: 20 × 20 m, rechts oben fehlt ein 10 × 10 m großes Stück.
+  const building = buildingItem({
+    id: 'b',
+    storeys: 2,
+    outline: [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+      { x: 20, y: 10 },
+      { x: 20, y: 20 },
+      { x: 0, y: 20 },
+    ],
+  });
+  // Bei 10 px/m und Mitte (0|0) liegt der Weltpunkt (x|y) bei (400 + 10x | 300 + 10y).
+  const hit = (x: number, y: number) =>
+    hitTestItems([building], camera, viewport, { x: 400 + 10 * x, y: 300 + 10 * y })?.ref.id;
+
+  it('wird innerhalb des Grundrisses getroffen', () => {
+    expect(hit(5, 15)).toBe('b');
+    expect(hit(15, 15)).toBe('b');
+  });
+
+  it('wird in der ausgesparten Ecke nicht getroffen', () => {
+    expect(hit(15, 5)).toBeUndefined();
+  });
+
+  it('wird knapp außerhalb des Rands noch getroffen', () => {
+    expect(hit(-0.3, 10)).toBe('b');
+  });
+
+  it('liegt unter Einheiten', () => {
+    const items = [building, unit('u', 5, 15)];
+    expect(hitTestItems(items, camera, viewport, { x: 450, y: 450 })?.ref.id).toBe('u');
+  });
+});
+
+describe('pointInPolygon', () => {
+  const square = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+  it('unterscheidet innen und außen', () => {
+    expect(pointInPolygon({ x: 5, y: 5 }, square)).toBe(true);
+    expect(pointInPolygon({ x: 15, y: 5 }, square)).toBe(false);
+  });
+});
+
+describe('Straßen und Beschriftungen', () => {
+  // 6 m breite Straße von (0|0) nach (40|0): bei 10 px/m 60 px breit.
+  const road = mapFeatureItem({
+    kind: 'road',
+    id: 'r',
+    path: [
+      { x: 0, y: 0 },
+      { x: 40, y: 0 },
+    ],
+    width: 6,
+  });
+  const label = mapFeatureItem({
+    kind: 'label',
+    id: 'l',
+    position: { x: -20, y: 0 },
+    text: 'Eingang',
+  });
+  const hit = (items: MapItem[], x: number, y: number) =>
+    hitTestItems(items, camera, viewport, { x, y })?.ref.id;
+
+  it('trifft Straßen innerhalb der Fahrbahnbreite', () => {
+    expect(hit([road], 600, 300 + 28)).toBe('r');
+    expect(hit([road], 600, 300 + 40)).toBeUndefined();
+  });
+
+  it('trifft Beschriftungen in ihrer festen Bildschirmgröße – unabhängig vom Zoom', () => {
+    // Beschriftung bei Weltpunkt (-20|0) = Bildschirm (200|300).
+    expect(hit([label], 220, 305)).toBe('l');
+    const zoomedOut = { ...camera, scale: 1 }; // jetzt bei (380|300)
+    expect(hitTestItems([label], zoomedOut, viewport, { x: 400, y: 305 })?.ref.id).toBe('l');
   });
 });

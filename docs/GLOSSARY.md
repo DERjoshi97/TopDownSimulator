@@ -20,37 +20,44 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 
 ## Feuerwehr (Fachlich)
 
-| Deutsch            | Englisch im Code      |
-| ------------------ | --------------------- |
-| Einheit            | `Unit`                |
-| Einheitentyp       | `UnitType`            |
-| Fahrzeug           | `Vehicle`             |
-| Trupp              | `Team`                |
-| Staffel            | `Squad`               |
-| Gruppe             | `Section`             |
-| Zug                | `Platoon`             |
-| Verband            | `Formation`           |
-| Führungsebene      | `CommandLevel`        |
-| Stärke             | `Strength`            |
-| Fahrzeugstatus/FMS | `radioStatus`         |
-| Befehl (Feuerwehr) | `Order`               |
-| Funkspruch         | `RadioMessage`        |
-| Lage               | `Situation`           |
-| Lageobjekt         | `SituationObject`     |
-| Lageobjekttyp      | `SituationObjectType` |
-| Feuer              | `fire`                |
-| Rauch              | `smoke`               |
-| Person             | `person`              |
-| Sichtbarkeit       | `Visibility`          |
-| nur Übungsleitung  | `director`            |
-| erkundet           | `reconnoitered`       |
-| für alle           | `everyone`            |
-| Taktisches Zeichen | `TacticalSymbol`      |
-| Einsatzabschnitt   | `Sector`              |
-| Erkundung          | `Reconnaissance`      |
-| Absperrung         | `Cordon`              |
-| Gefahrstoff        | `HazardousMaterial`   |
-| Hydrant            | `Hydrant`             |
+| Deutsch                            | Englisch im Code               |
+| ---------------------------------- | ------------------------------ |
+| Einheit                            | `Unit`                         |
+| Einheitentyp                       | `UnitType`                     |
+| Fahrzeug                           | `Vehicle`                      |
+| Trupp                              | `Team`                         |
+| Staffel                            | `Squad`                        |
+| Gruppe                             | `Section`                      |
+| Zug                                | `Platoon`                      |
+| Verband                            | `Formation`                    |
+| Führungsebene                      | `CommandLevel`                 |
+| Stärke                             | `Strength`                     |
+| Fahrzeugstatus/FMS                 | `radioStatus`                  |
+| Befehl (Feuerwehr)                 | `Order`                        |
+| Funkspruch                         | `RadioMessage`                 |
+| Lage                               | `Situation`                    |
+| Lageobjekt                         | `SituationObject`              |
+| Lageobjekttyp                      | `SituationObjectType`          |
+| Feuer                              | `fire`                         |
+| Rauch                              | `smoke`                        |
+| Person                             | `person`                       |
+| Sichtbarkeit                       | `Visibility`                   |
+| nur Übungsleitung                  | `director`                     |
+| erkundet                           | `reconnoitered`                |
+| für alle                           | `everyone`                     |
+| Taktisches Zeichen                 | `TacticalSymbol`               |
+| Einsatzabschnitt                   | `Sector`                       |
+| Erkundung                          | `Reconnaissance`               |
+| Absperrung                         | `Cordon`                       |
+| Gefahrstoff                        | `HazardousMaterial`            |
+| Hydrant                            | `Hydrant`                      |
+| Gebäude                            | `Building`                     |
+| Grundriss                          | `outline`                      |
+| Geschoss / Geschosszahl            | `storey` / `storeys`           |
+| Kartenelement                      | `MapFeature`                   |
+| Straße / Verlauf / Fahrbahnbreite  | `road` / `path` / `width`      |
+| Überflurhydrant / Unterflurhydrant | `above-ground` / `underground` |
+| Beschriftung (Karte)               | `label`                        |
 
 ## Übung
 
@@ -72,6 +79,7 @@ Fahrzeug- und Einheitenkürzel (HLF, LF, TLF, DLK, ELW, RTW …) bleiben unverä
 | Speichern / Laden         | `save` / `load`              |
 | Nachbesprechung           | `Debriefing`                 |
 | Karte                     | `Map`                        |
+| Karteneditor              | `MapEditor`                  |
 | Präsentationsmodus/Beamer | `PresentationView`           |
 
 ## Katalog

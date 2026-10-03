@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import { findUnitType, type Organization } from '@tds/catalog';
 import { HANDLE_RADIUS, rotationHandleOffset } from './hitTest';
+import type { Vec2 } from '@tds/engine';
 import { isArea, type MapItem } from './mapItems';
 
 // Taktische Zeichen, vereinfacht nach DV 102. Werden im Code gezeichnet (keine Bilddateien):
@@ -54,9 +55,31 @@ const SELECTION_PADDING = 6;
 export function createItemSymbol(item: MapItem): Container {
   const width = item.size.width * SYMBOL_PX_PER_METER;
   const height = item.size.height * SYMBOL_PX_PER_METER;
-  return item.ref.kind === 'unit'
-    ? createUnitSymbol(item.symbolType, width, height)
-    : createSituationSymbol(item.symbolType, width, height);
+  switch (item.ref.kind) {
+    case 'unit':
+      return createUnitSymbol(item.symbolType, width, height);
+    case 'mapFeature':
+      return createHydrantSymbol(item.symbolType === 'hydrant-above-ground', width);
+    default:
+      return createSituationSymbol(item.symbolType, width, height);
+  }
+}
+
+/**
+ * Hydrant, angelehnt an die Hydrantenschilder: Überflurhydrant rot gefüllt mit weißem „Ü“,
+ * Unterflurhydrant weiß mit rotem Ring und rotem „U“.
+ */
+function createHydrantSymbol(aboveGround: boolean, size: number): Container {
+  const radius = size / 2;
+  const g = new Graphics().circle(0, 0, radius);
+  if (aboveGround) g.fill(0xc8102e).stroke({ color: OUTLINE, width: size * 0.06 });
+  else g.fill(0xffffff).stroke({ color: 0xc8102e, width: size * 0.12 });
+  const symbol = new Container();
+  symbol.addChild(
+    g,
+    label(aboveGround ? 'Ü' : 'U', size * 0.55, aboveGround ? 0xffffff : 0xc8102e),
+  );
+  return symbol;
 }
 
 function createUnitSymbol(unitType: string, width: number, height: number): Container {
@@ -231,6 +254,138 @@ function label(text: string, fontSize: number, fill: number): Text {
     text,
     style: { fontFamily: 'system-ui, sans-serif', fontSize, fontWeight: 'bold', fill },
     resolution: LABEL_RESOLUTION,
+  });
+  t.anchor.set(0.5);
+  return t;
+}
+
+const BUILDING_FILL = 0xd6d1c8;
+const BUILDING_STROKE = 0x5a5650;
+
+/**
+ * Zeichnet einen Gebäudegrundriss. `points` sind schon Bildschirmkoordinaten; neu gezeichnet
+ * wird bei jeder Änderung, damit der Rand unabhängig vom Zoom gleich dick bleibt.
+ */
+export function drawBuilding(g: Graphics, points: readonly Vec2[]): void {
+  g.clear()
+    .poly(points.flatMap((p) => [p.x, p.y]))
+    .fill(BUILDING_FILL)
+    .stroke({ color: BUILDING_STROKE, width: 1.5 });
+}
+
+/** Auswahlmarkierung eines Gebäudes: der Grundriss in Blau mit Punkten an den Ecken. */
+export function drawBuildingSelection(g: Graphics, points: readonly Vec2[]): void {
+  g.clear()
+    .poly(points.flatMap((p) => [p.x, p.y]))
+    .stroke({ color: SELECTION_COLOR, width: 2 });
+  for (const p of points) g.circle(p.x, p.y, 3.5).fill(SELECTION_COLOR);
+}
+
+/**
+ * Vorschau beim Zeichnen eines Gebäudes (Bildschirmkoordinaten): gesetzte Eckpunkte, Linie bis
+ * zum Mauszeiger und – wenn das Polygon geschlossen werden kann – ein Ring um den ersten Punkt.
+ */
+export function drawShapePreview(
+  g: Graphics,
+  points: readonly Vec2[],
+  cursor: Vec2 | undefined,
+  canClose: boolean,
+): void {
+  g.clear();
+  const path = cursor ? [...points, cursor] : points;
+  if (path.length >= 3) {
+    g.poly(path.flatMap((p) => [p.x, p.y])).fill({ color: SELECTION_COLOR, alpha: 0.12 });
+  }
+  if (path.length >= 2) {
+    g.moveTo(path[0]!.x, path[0]!.y);
+    for (const p of path.slice(1)) g.lineTo(p.x, p.y);
+    g.stroke({ color: SELECTION_COLOR, width: 2 });
+  }
+  for (const p of points)
+    g.circle(p.x, p.y, 4).fill(0xffffff).stroke({ color: SELECTION_COLOR, width: 2 });
+  if (canClose && points[0]) {
+    g.circle(points[0].x, points[0].y, 9).stroke({ color: SELECTION_COLOR, width: 2 });
+  }
+}
+
+/** Beschriftung eines Gebäudes. Bleibt beim Zoomen gleich groß, damit sie lesbar ist. */
+export function createCaption(): Text {
+  const t = new Text({
+    text: '',
+    style: {
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: 12,
+      fontWeight: '600',
+      fill: 0x3a3732,
+      align: 'center',
+    },
+  });
+  t.anchor.set(0.5);
+  return t;
+}
+
+const ROAD_FILL = 0xc9c5bd;
+const ROAD_EDGE = 0x8f8a80;
+
+/**
+ * Zeichnet eine Straße in Bildschirmpixeln: dunkler Rand, darüber die hellere Fahrbahn.
+ * Neu gezeichnet bei jeder Änderung von Zoom oder Verlauf.
+ */
+export function drawRoad(g: Graphics, path: readonly Vec2[], widthPx: number): void {
+  g.clear();
+  if (path.length < 2) return;
+  const trace = () => {
+    g.moveTo(path[0]!.x, path[0]!.y);
+    for (const p of path.slice(1)) g.lineTo(p.x, p.y);
+  };
+  trace();
+  g.stroke({ color: ROAD_EDGE, width: widthPx + 2, cap: 'round', join: 'round' });
+  trace();
+  g.stroke({ color: ROAD_FILL, width: Math.max(1, widthPx), cap: 'round', join: 'round' });
+}
+
+/**
+ * Auswahlmarkierung einer Straße: leichter blauer Saum über der Fahrbahn, die Mittellinie und
+ * Punkte am Verlauf. Bewusst durchscheinend, damit Hydranten auf der Straße sichtbar bleiben.
+ */
+export function drawPathSelection(g: Graphics, path: readonly Vec2[], widthPx: number): void {
+  g.clear();
+  if (path.length < 2) return;
+  const trace = () => {
+    g.moveTo(path[0]!.x, path[0]!.y);
+    for (const p of path.slice(1)) g.lineTo(p.x, p.y);
+  };
+  trace();
+  g.stroke({
+    color: SELECTION_COLOR,
+    width: widthPx + 6,
+    alpha: 0.15,
+    cap: 'round',
+    join: 'round',
+  });
+  trace();
+  g.stroke({ color: SELECTION_COLOR, width: 2, join: 'round' });
+  for (const p of path) g.circle(p.x, p.y, 3.5).fill(SELECTION_COLOR);
+}
+
+/** Auswahlrahmen um ein Objekt mit fester Bildschirmgröße, z. B. eine Beschriftung. */
+export function drawScreenFrame(g: Graphics, width: number, height: number): void {
+  g.clear()
+    .rect(-width / 2 - 3, -height / 2 - 3, width + 6, height + 6)
+    .stroke({ color: SELECTION_COLOR, width: 2 });
+}
+
+/** Freie Beschriftung auf der Karte: dunkle Schrift mit hellem Rand, damit sie überall lesbar ist. */
+export function createMapLabel(): Text {
+  const t = new Text({
+    text: '',
+    style: {
+      fontFamily: 'system-ui, sans-serif',
+      fontSize: 13,
+      fontWeight: '600',
+      fill: 0x1a1a1a,
+      stroke: { color: 0xffffff, width: 4, join: 'round' },
+    },
   });
   t.anchor.set(0.5);
   return t;

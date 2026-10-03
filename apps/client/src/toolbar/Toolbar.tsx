@@ -7,6 +7,45 @@ const UNIT_GROUPS: { shape: SymbolShape; title: string }[] = [
   { shape: 'team', title: 'Trupps' },
 ];
 
+/** Werkzeuge des Karteneditors. */
+const MAP_TOOLS = [
+  {
+    tool: { kind: 'building', typeId: 'rectangle' },
+    label: 'Gebäude ▭',
+    title: 'Gebäude als Rechteck aufziehen',
+    swatch: 'building-rectangle',
+  },
+  {
+    tool: { kind: 'building', typeId: 'polygon' },
+    label: 'Gebäude ⬠',
+    title: 'Gebäude Eckpunkt für Eckpunkt zeichnen',
+    swatch: 'building-polygon',
+  },
+  {
+    tool: { kind: 'mapFeature', typeId: 'road' },
+    label: 'Straße',
+    title: 'Straßenverlauf Punkt für Punkt zeichnen',
+    swatch: 'road',
+  },
+  {
+    tool: { kind: 'mapFeature', typeId: 'hydrant' },
+    label: 'Hydrant',
+    title: 'Hydranten setzen (Unter- oder Überflur im Panel wählen)',
+    swatch: 'hydrant',
+  },
+  {
+    tool: { kind: 'mapFeature', typeId: 'label' },
+    label: 'Beschriftung',
+    title: 'Freien Text auf die Karte setzen',
+    swatch: 'label',
+  },
+] as const satisfies readonly {
+  tool: PlacementTool;
+  label: string;
+  title: string;
+  swatch: string;
+}[];
+
 /** Werkzeugleiste zum Platzieren von Einheiten und Lageobjekten: Typ wählen, dann auf die Karte klicken. */
 export function Toolbar() {
   const activeTool = useToolStore((s) => s.activeTool);
@@ -70,6 +109,25 @@ export function Toolbar() {
               </button>
             );
           })}
+        </div>
+      </section>
+
+      <section>
+        <h2>Karte</h2>
+        <div className="toolbar-buttons toolbar-buttons--list">
+          {MAP_TOOLS.map(({ tool, label, title, swatch }) => (
+            <button
+              key={label}
+              type="button"
+              title={title}
+              aria-pressed={isSameTool(activeTool, tool)}
+              className="toolbar-button toolbar-button--situation"
+              onClick={() => toggle(tool)}
+            >
+              <span className={`swatch swatch--${swatch}`} aria-hidden="true" />
+              {label}
+            </button>
+          ))}
         </div>
       </section>
     </nav>

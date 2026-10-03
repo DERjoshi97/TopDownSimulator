@@ -68,21 +68,21 @@ docs/         Planung, Fachkonzept, Entscheidungen.
 
 ## Phasen
 
-### Phase 0 – Grundgerüst
+### Phase 0 – Grundgerüst ✅
 
 - Projektstruktur (Workspaces), TypeScript, Linting, Tests
 - Leere Web-App startet mit `npm run dev`
 
-### Phase 1 – Lokales Planspiel (ein Rechner/Beamer)
+### Phase 1 – Lokales Planspiel (ein Rechner/Beamer) ✅
 
-1. **Karte**: Zoomen, Verschieben, Raster/Maßstab
-2. **Engine-Grundlage**: Befehle, Ereignisse, Zustand, Ereignisliste
-3. **Taktische Zeichen**: Katalog (erste Auswahl: HLF, LF, TLF, DLK, ELW, RTW, Trupps), platzieren, verschieben, drehen
-4. **Lageobjekte**: Feuer, Rauch, Person, Gefahrstoff, Absperrung
-5. **Einfacher Karteneditor**: Gebäude (Rechtecke/Polygone), Straßen, Hydranten, Beschriftungen
-6. **Einsatzuhr** und **Einsatztagebuch** (automatisch aus Ereignissen)
-7. **Szenario speichern/laden** (JSON-Datei)
-8. **Ansichten**: Übungsleitung (alles sichtbar) vs. Präsentationsmodus für den Beamer (nur Freigegebenes)
+1. **Karte**: Zoomen, Verschieben, Raster/Maßstab ✅ (#3)
+2. **Engine-Grundlage**: Befehle, Ereignisse, Zustand, Ereignisliste ✅ (#2)
+3. **Taktische Zeichen**: Katalog (erste Auswahl: HLF, LF, TLF, DLK, ELW, RTW, Trupps), platzieren, verschieben, drehen ✅ (#4, #6, #10 – maßstäblich)
+4. **Lageobjekte**: Feuer, Rauch, Person, Gefahrstoff, Absperrung ✅ (#7, #10 – mit Sichtbarkeit)
+5. **Einfacher Karteneditor**: Gebäude (Rechtecke/Polygone), Straßen, Hydranten, Beschriftungen ✅ (Gebäude mit Geschosszahl)
+6. **Einsatzuhr** und **Einsatztagebuch** (automatisch aus Ereignissen) ✅ (#9)
+7. **Szenario speichern/laden** (JSON-Datei) ✅ (#11)
+8. **Ansichten**: Übungsleitung (alles sichtbar) vs. Präsentationsmodus für den Beamer (nur Freigegebenes) ✅ (#12 – eigenes Beamer-Fenster)
 
 ### Phase 2 – Mehrspieler
 
@@ -112,16 +112,15 @@ docs/         Planung, Fachkonzept, Entscheidungen.
 
 ## Festgelegt für Phase 1
 
+- **Taktische Zeichen**: werden vereinfacht nach DV 102 im Code gezeichnet (keine Bilddateien, keine Lizenzfragen), maßstäblich mit realen Maßen aus dem Katalog.
 - **Erster Katalog**: HLF, LF, TLF, DLK, ELW, RTW sowie Trupps (Angriffs-, Wasser-, Schlauchtrupp).
 - **Beispielszenario**: Zimmerbrand im Mehrfamilienhaus, Gruppenebene.
 
 ## Offene Punkte
 
-- Taktische Zeichen: Quelle/Lizenz der Symbole klären (z. B. frei verfügbare SVG-Sammlungen) oder selbst zeichnen.
 - **3D-Ansicht aus Sicht des Einsatzleiters**: Neben der Draufsicht eine perspektivische Ansicht, in der man das Geschehen so sieht wie der Einsatzleiter vor Ort – Gebäude, Fahrzeuge, Feuer und Rauch aus Augenhöhe statt als Lagekarte. Zu klären:
   - **Blickpunkt**: fest an einer Position (z. B. am ELW), frei begehbar oder an eine Einheit gebunden?
   - **Wer sieht sie**: eher die Übenden als die Übungsleitung. Dann gilt die Sichtbarkeit der Lageobjekte – ein Brand, der noch nicht erkundet ist, darf dort nicht zu sehen sein.
   - **Detailgrad**: einfache Klötze und Flächen oder echte 3D-Modelle?
-  - **Technik** (eingeschätzt, passt ohne Umbau): Three.js als zweite Darstellung neben PixiJS. Die Engine bleibt unverändert, weil sie keine Oberfläche kennt und in Metern rechnet. Eine `SceneView` kann wie `MapView` aufgebaut sein und dieselben `MapItem`s verwenden. Neu nötig: reale Maße je Typ im Katalog (z. B. HLF ca. 8 × 2,5 × 3 m), Darstellung von Feuer und Rauch, Kamerasteuerung. Grenze: Die Engine rechnet in 2D – flache Einsatzstellen und Etagen (per Geschossnummer) gehen, Gelände mit Höhen bräuchte ein Höhenmodell.
-  - **Phase**: frühestens nach dem Karteneditor (Phase 1, Punkt 5), weil es ohne Gebäude wenig zu sehen gibt.
-  - **Folge schon für Punkt 5**: Gebäude sollten von Anfang an Höhe bzw. Geschosszahl bekommen, damit sie später in 3D dargestellt werden können.
+  - **Technik** (eingeschätzt, passt ohne Umbau): Three.js als zweite Darstellung neben PixiJS. Die Engine bleibt unverändert, weil sie keine Oberfläche kennt und in Metern rechnet. Eine `SceneView` kann wie `MapView` aufgebaut sein und dieselben `MapItem`s verwenden. Länge und Breite je Typ stehen seit #10 im Katalog; neu nötig sind noch die Höhe (z. B. HLF ca. 3 m), die Darstellung von Feuer und Rauch und eine Kamerasteuerung. Grenze: Die Engine rechnet in 2D – flache Einsatzstellen und Etagen (per Geschossnummer) gehen, Gelände mit Höhen bräuchte ein Höhenmodell.
+  - **Voraussetzungen erfüllt**: Der Karteneditor (Phase 1, Punkt 5) ist fertig, Gebäude haben eine Geschosszahl und lassen sich damit hochziehen.

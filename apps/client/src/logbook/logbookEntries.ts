@@ -1,8 +1,12 @@
 import {
   applyEvent,
   initialState,
+  pathLength,
+  polygonArea,
   type GameEvent,
   type GameState,
+  type MapFeature,
+  type Vec2,
   type Visibility,
 } from '@tds/engine';
 import { typeName, type MapItemRef } from '../map/mapItems';
@@ -119,6 +123,87 @@ function describe(
       };
     case 'SituationObjectRemoved':
       return { text: `${label('situationObject', event.objectId)} entfernt` };
+    case 'SituationObjectLengthChanged': {
+      const before = state.situationObjects[event.objectId]?.length;
+      const change = before !== undefined && event.length < before ? 'verkürzt' : 'verlängert';
+      return {
+        ref: object(event.objectId),
+        text: `${label('situationObject', event.objectId)} ${change} auf ${formatMeters(event.length)}`,
+      };
+    }
+
+    case 'BuildingAdded': {
+      const name = label('building', event.buildingId, 'building');
+      const named = event.name ? ` „${event.name}“` : '';
+      return {
+        ref: building(event.buildingId),
+        text: `Karte: ${name}${named} gezeichnet (${storeysText(event.storeys)}, ${formatArea(event.outline)})`,
+      };
+    }
+    case 'BuildingMoved':
+      return {
+        ref: building(event.buildingId),
+        text: `${label('building', event.buildingId)} verschoben (${formatMeters(Math.hypot(event.offset.x, event.offset.y))})`,
+      };
+    case 'BuildingChanged': {
+      const before = state.buildings[event.buildingId];
+      const changes: string[] = [];
+      if (before && before.name !== event.name) {
+        changes.push(event.name ? `umbenannt in „${event.name}“` : 'Name entfernt');
+      }
+      if (before && before.storeys !== event.storeys) changes.push(storeysText(event.storeys));
+      return {
+        ref: building(event.buildingId),
+        text: `${label('building', event.buildingId)}: ${changes.join(', ') || 'unverändert'}`,
+      };
+    }
+    case 'BuildingRemoved':
+      return { text: `${label('building', event.buildingId)} entfernt` };
+
+    case 'MapFeatureAdded': {
+      const { feature } = event;
+      const name = label('mapFeature', feature.id, featureType(feature));
+      const ref = mapFeature(feature.id);
+      switch (feature.kind) {
+        case 'road': {
+          const named = feature.name ? ` „${feature.name}“` : '';
+          const size = `${formatMeters(feature.width)} breit, ${formatMeters(pathLength(feature.path))} lang`;
+          return { ref, text: `Karte: ${name}${named} gezeichnet (${size})` };
+        }
+        case 'hydrant':
+          return { ref, text: `Karte: ${name} gesetzt` };
+        case 'label':
+          return { ref, text: `Karte: ${name} „${feature.text}“ gesetzt` };
+      }
+      break;
+    }
+    case 'MapFeatureMoved':
+      return {
+        ref: mapFeature(event.featureId),
+        text: `${label('mapFeature', event.featureId)} verschoben (${formatMeters(Math.hypot(event.offset.x, event.offset.y))})`,
+      };
+    case 'MapFeatureChanged': {
+      const { feature } = event;
+      const before = state.mapFeatures[feature.id];
+      const name = label('mapFeature', feature.id);
+      const ref = mapFeature(feature.id);
+      if (feature.kind === 'road' && before?.kind === 'road') {
+        const changes: string[] = [];
+        if (before.name !== feature.name) {
+          changes.push(feature.name ? `umbenannt in „${feature.name}“` : 'Name entfernt');
+        }
+        if (before.width !== feature.width) changes.push(`${formatMeters(feature.width)} breit`);
+        return { ref, text: `${name}: ${changes.join(', ') || 'unverändert'}` };
+      }
+      if (feature.kind === 'hydrant') {
+        const type = feature.hydrantType === 'underground' ? 'Unterflur' : 'Überflur';
+        return { ref, text: `${name}: jetzt ${type}` };
+      }
+      if (feature.kind === 'label') return { ref, text: `${name}: Text „${feature.text}“` };
+      return { ref, text: `${name} geändert` };
+    }
+    case 'MapFeatureRemoved':
+      return { text: `${label('mapFeature', event.featureId)} entfernt` };
 
     case 'ClockResumed':
       // Erster Start der Uhr = Übungsbeginn, danach geht es nach einer Pause weiter.
@@ -134,6 +219,21 @@ function describe(
 
 const unit = (id: string): MapItemRef => ({ kind: 'unit', id });
 const object = (id: string): MapItemRef => ({ kind: 'situationObject', id });
+const building = (id: string): MapItemRef => ({ kind: 'building', id });
+const mapFeature = (id: string): MapItemRef => ({ kind: 'mapFeature', id });
+
+/** Typ-Kennung für Nummerierung und Namen, z. B. "hydrant-underground" → "Unterflurhydrant 1". */
+function featureType(feature: MapFeature): string {
+  return feature.kind === 'hydrant' ? `hydrant-${feature.hydrantType}` : feature.kind;
+}
+
+function storeysText(storeys: number): string {
+  return `${storeys} ${storeys === 1 ? 'Geschoss' : 'Geschosse'}`;
+}
+
+function formatArea(outline: readonly Vec2[]): string {
+  return `${Math.round(polygonArea(outline)).toLocaleString('de-DE')} m²`;
+}
 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(a.x - b.x, a.y - b.y);

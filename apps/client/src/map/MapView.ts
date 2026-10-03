@@ -1,5 +1,5 @@
-import { Application, Container, Graphics } from 'pixi.js';
-import type { Vec2 } from '@tds/engine';
+import { Application, Container, Graphics, type Text } from 'pixi.js';
+import { translatePoints, type Vec2 } from '@tds/engine';
 import {
   defaultCamera,
   gridStep,
@@ -23,11 +23,22 @@ import {
 import { isArea, refKey, sameRef, type MapItem, type MapItemRef } from './mapItems';
 import {
   SYMBOL_PX_PER_METER,
+  createCaption,
   createItemSymbol,
+  createMapLabel,
   drawArea,
+  drawBuilding,
+  drawBuildingSelection,
   drawLengthSymbol,
+  drawPathSelection,
+  drawRoad,
+  drawScreenFrame,
   drawSelection,
+  drawShapePreview,
 } from './symbols';
+
+/** Zeichenwerkzeug für Gebäude: Rechteck aufziehen oder Polygon Punkt für Punkt setzen. */
+export type DrawMode = 'rectangle' | 'polygon' | 'polyline';
 
 export interface MapViewOptions {
   /** Wird aufgerufen, wenn sich Ausschnitt, Zoom oder die Fenstergröße ändern. */
@@ -43,8 +54,10 @@ export interface MapViewOptions {
   onMapClick?: (world: Vec2, modifiers: { shiftKey: boolean }) => void;
   /** Ein Objekt wurde angeklickt (auch zu Beginn des Ziehens). */
   onItemSelect?: (ref: MapItemRef) => void;
-  /** Ein Objekt wurde mit der Maus an eine neue Position gezogen. */
-  onItemMoveEnd?: (ref: MapItemRef, position: Vec2) => void;
+  /** Ein Objekt wurde mit der Maus von `from` an eine neue Position gezogen. */
+  onItemMoveEnd?: (ref: MapItemRef, position: Vec2, from: Vec2) => void;
+  /** Mit dem Zeichenwerkzeug wurde ein Grundriss fertig gezeichnet (Eckpunkte in Metern). */
+  onShapeDrawn?: (points: Vec2[], mode: DrawMode) => void;
   /** Ein Objekt wurde am Drehgriff gedreht. */
   onItemRotateEnd?: (ref: MapItemRef, rotation: number) => void;
   /** Eine Fläche wurde am Größen-Griff auf einen neuen Radius in Metern gezogen. */
@@ -75,20 +88,32 @@ const MIN_RADIUS = 0.5;
 /** Kleinste Länge in Metern beim Ziehen am Längen-Griff. */
 const MIN_LENGTH = 1;
 
+/** Klick so nah am ersten Eckpunkt schließt das Polygon. */
+const CLOSE_POLYGON_PX = 9;
+
+/** Beschriftungen von Gebäuden erst zeigen, wenn das Gebäude auf dem Bildschirm so breit ist. */
+const MIN_CAPTION_WIDTH_PX = 50;
+
 /**
  * Was gerade mit gedrückter Maustaste passiert: Karte verschieben, Objekt ziehen, drehen
  * oder in der Größe ändern. Während des Ziehens hält `Drag` den Zwischenstand; erst beim
  * Loslassen wird daraus ein Befehl.
  */
 type Drag = { pointerId: number; start: Vec2; moved: boolean } & (
-  | { kind: 'pan'; last: Vec2 }
   | {
       kind: 'move';
       ref: MapItemRef;
       /** Abstand zwischen Objektmitte und Griffpunkt, damit das Zeichen nicht zur Maus springt. */
       grabOffset: Vec2;
       position: Vec2;
+      from: Vec2;
     }
+  /**
+   * Karte verschieben, die in einem (noch nicht ausgewählten) Gebäude begann: Ein Klick ohne
+   * Bewegung wählt das Gebäude aus, Ziehen verschiebt die Karte – auch in großen Gebäuden.
+   */
+  | { kind: 'pan'; last: Vec2; selectOnClick?: MapItemRef }
+  | { kind: 'draw-rectangle'; from: Vec2; to: Vec2 }
   | { kind: 'rotate'; ref: MapItemRef; rotation: number }
   | { kind: 'resize'; ref: MapItemRef; radius: number }
   | { kind: 'length'; ref: MapItemRef; length: number }
@@ -102,6 +127,13 @@ interface ItemDisplay {
   readonly symbol: Container;
   readonly area?: Graphics;
   readonly lengthGraphic?: Graphics;
+  /** Bei Gebäuden: Grundriss (in Bildschirmpixeln gezeichnet) und Beschriftung. */
+  readonly outlineGraphic?: Graphics;
+  readonly caption?: Text;
+  /** Bei Straßen: Fahrbahn, in Bildschirmpixeln gezeichnet. */
+  readonly pathGraphic?: Graphics;
+  /** Typ, mit dem das Zeichen erzeugt wurde – ändert er sich (z. B. Hydrantenart), neu erzeugen. */
+  readonly symbolType: string;
 }
 
 /**
@@ -113,10 +145,27 @@ export class MapView {
   readonly #app: Application;
   readonly #options: MapViewOptions;
   readonly #grid = new Graphics();
+  /** Gebäude liegen ganz unten, darüber Flächen, darüber alle Zeichen. */
+  readonly #buildingLayer = new Container();
+  /** Straßen liegen unter den Gebäuden. */
+  readonly #roadLayer = new Container();
   /** Flächen liegen unter allen Zeichen, damit ein Feuer kein Fahrzeug verdeckt. */
   readonly #areaLayer = new Container();
   readonly #symbolLayer = new Container();
   readonly #selection = new Graphics();
+  /** Vorschau beim Zeichnen eines Gebäudes. */
+  readonly #preview = new Graphics();
+  #drawMode: DrawMode | undefined;
+  /**
+   * Ist ein Werkzeug zum Platzieren per Klick aktiv? Dann gelten Straßen und Gebäude als
+   * Untergrund – ein Hydrant auf der Straße oder ein Trupp im Gebäude soll gesetzt werden,
+   * statt Straße oder Gebäude auszuwählen.
+   */
+  #placing = false;
+  /** Bereits gesetzte Eckpunkte beim Polygon-Zeichnen, in Metern. */
+  #polygonPoints: Vec2[] = [];
+  /** Letzte Mausposition in Metern – für die Linie zum nächsten Eckpunkt. */
+  #cursorWorld: Vec2 | undefined;
   /** Anzeige je Objekt, damit bei Änderungen nicht alles neu erzeugt werden muss. */
   readonly #displays = new Map<string, ItemDisplay>();
   #items: readonly MapItem[] = [];
@@ -146,7 +195,15 @@ export class MapView {
   private constructor(app: Application, options: MapViewOptions) {
     this.#app = app;
     this.#options = options;
-    app.stage.addChild(this.#grid, this.#areaLayer, this.#symbolLayer, this.#selection);
+    app.stage.addChild(
+      this.#grid,
+      this.#roadLayer,
+      this.#buildingLayer,
+      this.#areaLayer,
+      this.#symbolLayer,
+      this.#selection,
+      this.#preview,
+    );
     app.ticker.add(this.#render);
     this.#removeListeners =
       options.interactive === false ? () => {} : this.#attachInput(app.canvas);
@@ -171,12 +228,15 @@ export class MapView {
   /** Übernimmt die Objekte aus dem Spielstand: legt neue Zeichen an und entfernt alte. */
   setItems(items: readonly MapItem[]): void {
     this.#items = items;
-    const keys = new Set(items.map((item) => refKey(item.ref)));
 
+    const typeByKey = new Map(items.map((item) => [refKey(item.ref), item.symbolType]));
     for (const [key, display] of this.#displays) {
-      if (!keys.has(key)) {
+      // Entfernt – oder anderer Typ (z. B. Hydrant umgestellt): dann gleich neu erzeugen.
+      if (typeByKey.get(key) !== display.symbolType) {
         display.symbol.destroy({ children: true });
         display.area?.destroy();
+        display.outlineGraphic?.destroy();
+        display.pathGraphic?.destroy();
         this.#displays.delete(key);
       }
     }
@@ -185,7 +245,16 @@ export class MapView {
       if (this.#displays.has(key)) continue;
       const display = createDisplay(item);
       this.#displays.set(key, display);
-      this.#symbolLayer.addChild(display.symbol);
+      if (display.pathGraphic) {
+        this.#roadLayer.addChild(display.pathGraphic);
+        this.#symbolLayer.addChildAt(display.symbol, 0);
+      } else if (display.outlineGraphic) {
+        this.#buildingLayer.addChild(display.outlineGraphic);
+        // Beschriftungen über den Flächen, damit ein Feuer den Gebäudenamen nicht verdeckt.
+        this.#symbolLayer.addChildAt(display.symbol, 0);
+      } else {
+        this.#symbolLayer.addChild(display.symbol);
+      }
       if (display.area) this.#areaLayer.addChild(display.area);
     }
     // Zeichenreihenfolge an die Liste anpassen: Was später kommt, liegt oben.
@@ -199,6 +268,48 @@ export class MapView {
   /** Markiert ein Objekt als ausgewählt. `undefined` hebt die Auswahl auf. */
   setSelection(ref: MapItemRef | undefined): void {
     this.#selected = ref;
+    this.#dirty = true;
+  }
+
+  /** Meldet, ob gerade ein Werkzeug zum Platzieren per Klick aktiv ist (siehe `#placing`). */
+  setPlacing(placing: boolean): void {
+    this.#placing = placing;
+  }
+
+  /**
+   * Schaltet das Zeichenwerkzeug für Gebäude ein oder aus. Solange es aktiv ist, lassen sich
+   * keine Objekte auswählen; Karte verschieben und zoomen geht weiter.
+   */
+  setDrawMode(mode: DrawMode | undefined): void {
+    if (mode === this.#drawMode) return;
+    this.#drawMode = mode;
+    this.#polygonPoints = [];
+    this.#dirty = true;
+  }
+
+  /**
+   * Schließt das Polygon bzw. den Linienzug ab (z. B. mit Enter). Ein Polygon braucht mindestens
+   * drei, ein Linienzug mindestens zwei Punkte – sonst passiert nichts.
+   */
+  finishPolygon(): void {
+    const mode = this.#drawMode;
+    if (mode !== 'polygon' && mode !== 'polyline') return;
+    const points = withoutDuplicates(this.#polygonPoints, mode === 'polygon');
+    if (points.length < (mode === 'polygon' ? 3 : 2)) return;
+    this.#polygonPoints = [];
+    this.#dirty = true;
+    this.#options.onShapeDrawn?.(points, mode);
+  }
+
+  /** Nimmt den zuletzt gesetzten Eckpunkt zurück (z. B. mit ⌫). */
+  undoPolygonPoint(): void {
+    this.#polygonPoints = this.#polygonPoints.slice(0, -1);
+    this.#dirty = true;
+  }
+
+  /** Verwirft das angefangene Polygon. */
+  cancelPolygon(): void {
+    this.#polygonPoints = [];
     this.#dirty = true;
   }
 
@@ -231,7 +342,43 @@ export class MapView {
     this.#dirty = false;
     this.#drawGrid(viewport);
     this.#positionItems(viewport);
+    this.#drawPreview(viewport);
   };
+
+  /** Vorschau des Gebäudes, das gerade gezeichnet wird. */
+  #drawPreview(viewport: Viewport): void {
+    const toScreen = (p: Vec2) => worldToScreen(this.#camera, viewport, p);
+    const drag = this.#drag;
+    if (drag?.kind === 'draw-rectangle' && drag.moved) {
+      drawShapePreview(
+        this.#preview,
+        rectangle(drag.from, drag.to).map(toScreen),
+        undefined,
+        false,
+      );
+    } else if (this.#isPointDrawing() && this.#polygonPoints.length > 0) {
+      const points = this.#polygonPoints.map(toScreen);
+      const cursor = this.#cursorWorld && toScreen(this.#cursorWorld);
+      drawShapePreview(this.#preview, points, cursor, this.#canClosePolygonAt(cursor));
+    } else {
+      this.#preview.clear();
+    }
+  }
+
+  /** Werden gerade Punkte einzeln gesetzt (Polygon oder Straßenverlauf)? */
+  #isPointDrawing(): boolean {
+    return this.#drawMode === 'polygon' || this.#drawMode === 'polyline';
+  }
+
+  /** Würde ein Klick an `screenPoint` das Polygon schließen (nahe am ersten Punkt)? */
+  #canClosePolygonAt(screenPoint: Vec2 | undefined): boolean {
+    const first = this.#polygonPoints[0];
+    if (this.#drawMode !== 'polygon') return false;
+    if (!screenPoint || !first || this.#polygonPoints.length < 3) return false;
+    return (
+      distance(screenPoint, worldToScreen(this.#camera, this.#viewport, first)) <= CLOSE_POLYGON_PX
+    );
+  }
 
   /** Setzt Zeichen, Flächen und Auswahlmarkierung an die Bildschirmposition ihres Objekts. */
   #positionItems(viewport: Viewport): void {
@@ -241,6 +388,44 @@ export class MapView {
       if (!display) continue;
       const item = this.#displayedItem(original);
       const screen = worldToScreen(this.#camera, viewport, item.position);
+      const isSelected = this.#selected !== undefined && sameRef(item.ref, this.#selected);
+
+      if (item.path && display.pathGraphic && display.caption) {
+        const path = item.path.map((p) => worldToScreen(this.#camera, viewport, p));
+        const widthPx = (item.pathWidth ?? 0) * this.#camera.scale;
+        drawRoad(display.pathGraphic, path, widthPx);
+        updateCaption(display.caption, item.caption ?? '', screen, path);
+        if (isSelected) {
+          drawPathSelection(this.#selection, path, widthPx);
+          this.#selection.position.set(0, 0);
+          this.#selection.angle = 0;
+          this.#selection.visible = true;
+        }
+        continue;
+      }
+      if (item.screenSize && display.caption) {
+        if (display.caption.text !== item.caption) display.caption.text = item.caption ?? '';
+        display.symbol.position.set(screen.x, screen.y);
+        if (isSelected) {
+          drawScreenFrame(this.#selection, display.caption.width, display.caption.height);
+          this.#selection.position.set(screen.x, screen.y);
+          this.#selection.angle = 0;
+          this.#selection.visible = true;
+        }
+        continue;
+      }
+      if (item.outline && display.outlineGraphic && display.caption) {
+        const outline = item.outline.map((p) => worldToScreen(this.#camera, viewport, p));
+        drawBuilding(display.outlineGraphic, outline);
+        updateCaption(display.caption, item.caption ?? '', screen, outline);
+        if (isSelected) {
+          drawBuildingSelection(this.#selection, outline);
+          this.#selection.position.set(0, 0);
+          this.#selection.angle = 0;
+          this.#selection.visible = true;
+        }
+        continue;
+      }
       const radiusPx = (item.radius ?? 0) * this.#camera.scale;
       const alpha = item.dimmed ? DIMMED_ALPHA : 1;
 
@@ -259,7 +444,7 @@ export class MapView {
         display.area.position.set(screen.x, screen.y);
         display.area.alpha = alpha;
       }
-      if (this.#selected && sameRef(item.ref, this.#selected)) {
+      if (isSelected) {
         drawSelection(this.#selection, item, radiusPx, this.#camera.scale);
         this.#selection.position.set(screen.x, screen.y);
         this.#selection.angle = item.rotation;
@@ -274,10 +459,22 @@ export class MapView {
    */
   #displayedItem(item: MapItem): MapItem {
     const drag = this.#drag;
-    if (!drag || drag.kind === 'pan' || !sameRef(drag.ref, item.ref)) return item;
+    if (!drag || drag.kind === 'pan' || drag.kind === 'draw-rectangle') return item;
+    if (!sameRef(drag.ref, item.ref)) return item;
     switch (drag.kind) {
-      case 'move':
-        return { ...item, position: drag.position };
+      case 'move': {
+        // Gebäude wandern samt Grundriss mit.
+        const offset = {
+          x: drag.position.x - item.position.x,
+          y: drag.position.y - item.position.y,
+        };
+        return {
+          ...item,
+          position: drag.position,
+          ...(item.outline && { outline: translatePoints(item.outline, offset) }),
+          ...(item.path && { path: translatePoints(item.path, offset) }),
+        };
+      }
       case 'rotate':
         return { ...item, rotation: drag.rotation };
       case 'resize':
@@ -374,6 +571,17 @@ export class MapView {
       const point = localPoint(e);
       const base = { pointerId: e.pointerId, start: point, moved: false };
 
+      // Zeichenwerkzeug: Rechteck wird aufgezogen; beim Polygon setzt ein Klick (ohne Ziehen)
+      // einen Eckpunkt, Ziehen verschiebt wie gewohnt die Karte.
+      if (this.#drawMode) {
+        const world = toWorld(point);
+        this.#drag =
+          this.#drawMode === 'rectangle' && e.button === 0
+            ? { ...base, kind: 'draw-rectangle', from: world, to: world }
+            : { ...base, kind: 'pan', last: point };
+        return;
+      }
+
       // Linke Maustaste: zuerst die Griffe der Auswahl, dann die Objekte.
       // Alles andere (und die mittlere Taste) verschiebt die Karte.
       const handle = e.button === 0 ? this.#hitTestHandles(point) : undefined;
@@ -389,9 +597,19 @@ export class MapView {
         return;
       }
 
+      const candidates = this.#placing
+        ? this.#items.filter((i) => !i.outline && !i.path)
+        : this.#items;
       const item =
-        e.button === 0 ? hitTestItems(this.#items, this.#camera, this.#viewport, point) : undefined;
-      if (item) {
+        e.button === 0 ? hitTestItems(candidates, this.#camera, this.#viewport, point) : undefined;
+      // Ein noch nicht ausgewähltes Gebäude (oder eine Straße) wird erst beim Loslassen
+      // ausgewählt; Ziehen verschiebt bis dahin die Karte (siehe `selectOnClick`).
+      const isLarge = item?.outline !== undefined || item?.path !== undefined;
+      const isUnselectedBuilding =
+        isLarge && !(selected && item && sameRef(selected.ref, item.ref));
+      if (item && isUnselectedBuilding) {
+        this.#drag = { ...base, kind: 'pan', last: point, selectOnClick: item.ref };
+      } else if (item) {
         this.#options.onItemSelect?.(item.ref);
         const world = toWorld(point);
         this.#drag = {
@@ -400,6 +618,7 @@ export class MapView {
           ref: item.ref,
           grabOffset: { x: item.position.x - world.x, y: item.position.y - world.y },
           position: item.position,
+          from: item.position,
         };
       } else {
         this.#drag = { ...base, kind: 'pan', last: point };
@@ -414,12 +633,17 @@ export class MapView {
         if (drag.kind === 'pan') {
           this.setCamera(panBy(this.#camera, point.x - drag.last.x, point.y - drag.last.y));
           drag.last = point;
+        } else if (drag.kind === 'draw-rectangle') {
+          drag.to = roundPoint(toWorld(point));
+          this.#dirty = true;
         } else if (drag.moved) {
           this.#updateDrag(drag, point, e.shiftKey);
           this.#dirty = true;
         }
       }
-      this.#options.onCursorMove?.(toWorld(point));
+      this.#cursorWorld = toWorld(point);
+      if (this.#isPointDrawing()) this.#dirty = true;
+      this.#options.onCursorMove?.(this.#cursorWorld);
     };
 
     const onPointerUp = (e: PointerEvent) => {
@@ -430,15 +654,25 @@ export class MapView {
       canvas.style.cursor = '';
 
       if (drag.kind === 'pan') {
-        if (!drag.moved && e.type === 'pointerup') {
-          this.#options.onMapClick?.(toWorld(localPoint(e)), { shiftKey: e.shiftKey });
+        if (drag.moved || e.type !== 'pointerup') return;
+        const point = localPoint(e);
+        if (this.#isPointDrawing()) {
+          this.#addPolygonPoint(point);
+        } else if (drag.selectOnClick) {
+          this.#options.onItemSelect?.(drag.selectOnClick);
+        } else {
+          this.#options.onMapClick?.(toWorld(point), { shiftKey: e.shiftKey });
         }
+        return;
+      }
+      if (drag.kind === 'draw-rectangle') {
+        if (drag.moved) this.#options.onShapeDrawn?.(rectangle(drag.from, drag.to), 'rectangle');
         return;
       }
       if (!drag.moved) return;
       switch (drag.kind) {
         case 'move':
-          this.#options.onItemMoveEnd?.(drag.ref, drag.position);
+          this.#options.onItemMoveEnd?.(drag.ref, drag.position, drag.from);
           break;
         case 'rotate':
           this.#options.onItemRotateEnd?.(drag.ref, drag.rotation);
@@ -452,7 +686,17 @@ export class MapView {
       }
     };
 
-    const onPointerLeave = () => this.#options.onCursorMove?.(undefined);
+    const onPointerLeave = () => {
+      this.#cursorWorld = undefined;
+      this.#dirty = true;
+      this.#options.onCursorMove?.(undefined);
+    };
+
+    // Doppelklick schließt das Polygon. Die beiden Klicks davor haben schon Punkte gesetzt –
+    // doppelte Punkte entfernt `finishPolygon`.
+    const onDoubleClick = () => {
+      if (this.#isPointDrawing()) this.finishPolygon();
+    };
 
     const onWheel = (e: WheelEvent) => {
       // Verhindert, dass die ganze Seite mitscrollt oder der Browser selbst zoomt.
@@ -468,6 +712,7 @@ export class MapView {
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointercancel', onPointerUp);
     canvas.addEventListener('pointerleave', onPointerLeave);
+    canvas.addEventListener('dblclick', onDoubleClick);
     // `passive: false`, weil wir preventDefault aufrufen
     canvas.addEventListener('wheel', onWheel, { passive: false });
 
@@ -477,12 +722,28 @@ export class MapView {
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointercancel', onPointerUp);
       canvas.removeEventListener('pointerleave', onPointerLeave);
+      canvas.removeEventListener('dblclick', onDoubleClick);
       canvas.removeEventListener('wheel', onWheel);
     };
   }
 
+  /** Setzt beim Polygon-Zeichnen einen Eckpunkt – oder schließt ab, wenn nah am ersten Punkt. */
+  #addPolygonPoint(screenPoint: Vec2): void {
+    if (this.#canClosePolygonAt(screenPoint)) {
+      this.finishPolygon();
+      return;
+    }
+    const world = screenToWorld(this.#camera, this.#viewport, screenPoint);
+    this.#polygonPoints = [...this.#polygonPoints, roundPoint(world)];
+    this.#dirty = true;
+  }
+
   /** Aktualisiert den Zwischenstand beim Ziehen, Drehen oder Größe ändern. */
-  #updateDrag(drag: Exclude<Drag, { kind: 'pan' }>, point: Vec2, shiftKey: boolean): void {
+  #updateDrag(
+    drag: Exclude<Drag, { kind: 'pan' } | { kind: 'draw-rectangle' }>,
+    point: Vec2,
+    shiftKey: boolean,
+  ): void {
     if (drag.kind === 'move') {
       const world = screenToWorld(this.#camera, this.#viewport, point);
       drag.position = { x: world.x + drag.grabOffset.x, y: world.y + drag.grabOffset.y };
@@ -514,13 +775,67 @@ export class MapView {
 }
 
 function createDisplay(item: MapItem): ItemDisplay {
+  const { symbolType } = item;
+  if (item.path || item.outline || item.screenSize) {
+    const caption = item.screenSize ? createMapLabel() : createCaption();
+    const symbol = new Container();
+    symbol.addChild(caption);
+    if (item.path) return { symbol, caption, pathGraphic: new Graphics(), symbolType };
+    if (item.outline) return { symbol, caption, outlineGraphic: new Graphics(), symbolType };
+    return { symbol, caption, symbolType };
+  }
   if (item.length !== undefined) {
     const lengthGraphic = new Graphics();
     const symbol = new Container();
     symbol.addChild(lengthGraphic);
-    return { symbol, lengthGraphic };
+    return { symbol, lengthGraphic, symbolType };
   }
-  return { symbol: createItemSymbol(item), ...(isArea(item) && { area: new Graphics() }) };
+  return {
+    symbol: createItemSymbol(item),
+    ...(isArea(item) && { area: new Graphics() }),
+    symbolType,
+  };
+}
+
+/**
+ * Setzt die Beschriftung eines Gebäudes oder einer Straße an `center`; ist das Objekt auf dem
+ * Bildschirm zu klein für den Text, bleibt es unbeschriftet.
+ */
+function updateCaption(caption: Text, text: string, center: Vec2, outline: readonly Vec2[]): void {
+  if (caption.text !== text) caption.text = text;
+  const xs = outline.map((p) => p.x);
+  const width = Math.max(...xs) - Math.min(...xs);
+  caption.visible = width >= Math.max(MIN_CAPTION_WIDTH_PX, caption.width + 8);
+  caption.position.set(center.x, center.y);
+}
+
+/** Achsparalleles Rechteck aus zwei gegenüberliegenden Ecken (im Uhrzeigersinn). */
+function rectangle(a: Vec2, b: Vec2): Vec2[] {
+  return [
+    { x: a.x, y: a.y },
+    { x: b.x, y: a.y },
+    { x: b.x, y: b.y },
+    { x: a.x, y: b.y },
+  ];
+}
+
+/** Auf 0,1 m runden, damit im Einsatztagebuch und in der Datei keine krummen Werte stehen. */
+function roundPoint(p: Vec2): Vec2 {
+  return { x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10 };
+}
+
+/**
+ * Entfernt aufeinanderfolgende (fast) gleiche Punkte, z. B. die zwei Klicks eines Doppelklicks.
+ * Bei geschlossenen Formen (Polygon) fällt auch ein letzter Punkt weg, der auf dem ersten liegt.
+ */
+function withoutDuplicates(points: readonly Vec2[], closed: boolean): Vec2[] {
+  const result: Vec2[] = [];
+  for (const p of points) {
+    const last = result.at(-1);
+    if (!last || distance(last, p) > 0.2) result.push(p);
+  }
+  if (closed && result.length > 1 && distance(result[0]!, result.at(-1)!) <= 0.2) result.pop();
+  return result;
 }
 
 /** Liegt `value` (ungefähr) auf einem Vielfachen von `step`? Toleranz wegen Rundungsfehlern. */

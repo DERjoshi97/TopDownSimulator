@@ -41,6 +41,62 @@ export interface SituationObject {
   readonly visibility: Visibility;
 }
 
+/** Eindeutige Kennung eines Gebäudes. Wird wie `UnitId` vom Aufrufer erzeugt. */
+export type BuildingId = string;
+
+/** Ein Gebäude auf der Karte – Teil des Kartenbilds, für alle sichtbar. */
+export interface Building {
+  readonly id: BuildingId;
+  /** Grundriss als Eckpunkte in Metern (mindestens drei). */
+  readonly outline: readonly Vec2[];
+  /** Anzahl der Geschosse über der Erde, mindestens 1. Grundlage für die spätere 3D-Ansicht. */
+  readonly storeys: number;
+  /** Optionaler Name, z. B. "Schule" oder "Haus A". */
+  readonly name?: string;
+}
+
+/** Eindeutige Kennung eines Kartenelements (Straße, Hydrant, Beschriftung). */
+export type MapFeatureId = string;
+
+export type HydrantType = 'above-ground' | 'underground';
+export const hydrantTypes: readonly HydrantType[] = ['above-ground', 'underground'];
+
+/**
+ * Teil des Kartenbilds neben den Gebäuden – für alle sichtbar. Alle Arten teilen sich dieselben
+ * Befehle (hinzufügen, verschieben, ändern, entfernen); `kind` unterscheidet sie.
+ */
+export type MapFeature =
+  | {
+      readonly kind: 'road';
+      readonly id: MapFeatureId;
+      /** Verlauf der Straßenmitte, mindestens zwei Punkte. */
+      readonly path: readonly Vec2[];
+      /** Fahrbahnbreite in Metern. */
+      readonly width: number;
+      readonly name?: string;
+    }
+  | {
+      readonly kind: 'hydrant';
+      readonly id: MapFeatureId;
+      readonly position: Vec2;
+      readonly hydrantType: HydrantType;
+    }
+  | {
+      readonly kind: 'label';
+      readonly id: MapFeatureId;
+      readonly position: Vec2;
+      readonly text: string;
+    };
+
+/** Was sich an einem Kartenelement ändern lässt. Felder, die zur Art nicht passen, werden abgelehnt. */
+export interface MapFeatureChanges {
+  readonly width?: number;
+  /** Leerer Name entfernt den Namen. */
+  readonly name?: string;
+  readonly hydrantType?: HydrantType;
+  readonly text?: string;
+}
+
 /** Zustand der Einsatzuhr. Wie viel Übungszeit vergangen ist, rechnet `exerciseTimeAt` aus. */
 export interface ClockState {
   readonly running: boolean;
@@ -55,12 +111,16 @@ export interface ClockState {
 export interface GameState {
   readonly units: Readonly<Record<UnitId, Unit>>;
   readonly situationObjects: Readonly<Record<SituationObjectId, SituationObject>>;
+  readonly buildings: Readonly<Record<BuildingId, Building>>;
+  readonly mapFeatures: Readonly<Record<MapFeatureId, MapFeature>>;
   readonly clock: ClockState;
 }
 
 export const initialState: GameState = {
   units: {},
   situationObjects: {},
+  buildings: {},
+  mapFeatures: {},
   // Eine Übung beginnt angehalten: Die Übungsleitung baut erst die Ausgangslage auf.
   clock: { running: false, speed: 1 },
 };
